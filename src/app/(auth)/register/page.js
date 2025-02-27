@@ -20,34 +20,97 @@ export default function Register() {
   const [error, setError] = useState(null);
   const router = useRouter();
 
+  // Input validation
+  const validateInputs = () => {
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Please enter a valid email address');
+    }
+
+    // Password strength
+    if (password.length < 8) {
+      throw new Error('Password must be at least 8 characters long');
+    }
+
+    // Username validation
+    if (username.length < 3 || username.length > 20) {
+      throw new Error('Username must be between 3 and 20 characters');
+    }
+
+    // Check for username uniqueness
+    return checkUsernameUniqueness(username);
+  };
+
+  // Check username uniqueness
+  const checkUsernameUniqueness = async (username) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('username', username)
+      .single();
+
+    if (data) {
+      throw new Error('Username is already taken');
+    }
+
+    return true;
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
+  
     try {
-      // Register the user
+      // Validate inputs first
+      await validateInputs();
+
+      // 1. Register the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            username,
+            full_name: fullName,
+            is_shopper: userType === 'shopper'
+          }
+        }
       });
-
+  
       if (authError) throw authError;
-
-      // Create a profile
-      if (authData.user) {
-        const { error: profileError } = await supabase.from('profiles').insert({
+      if (!authData.user) throw new Error("Authentication succeeded but no user was returned");
+  
+      console.log("Auth successful, user ID:", authData.user.id);
+  
+      // 2. Create the user profile with transaction-like approach
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .insert({
           user_id: authData.user.id,
           username,
           full_name: fullName,
           is_shopper: userType === 'shopper',
-        });
-
-        if (profileError) throw profileError;
-
-        // If user is a shopper, create a shopper profile
-        if (userType === 'shopper') {
-          const { error: shopperError } = await supabase.from('shopper_profiles').insert({
+        })
+        .select();
+  
+      if (profileError) {
+        console.error("Profile creation error:", profileError);
+        
+        // Check for specific error types
+        if (profileError.code === '23505') {
+          throw new Error('Username is already in use. Please choose another.');
+        }
+        
+        throw new Error(`Failed to create profile: ${profileError.message}`);
+      }
+  
+      // 3. If they're a shopper, create the shopper profile
+      if (userType === 'shopper') {
+        const { data: shopperData, error: shopperError } = await supabase
+          .from('shopper_profiles')
+          .insert({
             user_id: authData.user.id,
             specialties: [],
             location: '',
@@ -55,14 +118,24 @@ export default function Register() {
             verification_level: 'pending',
             rating: 0,
             languages: ['Japanese'],
-          });
-
-          if (shopperError) throw shopperError;
+          })
+          .select();
+  
+        if (shopperError) {
+          console.error("Shopper profile creation error:", shopperError);
+          
+          // Detailed error handling
+          const errorMessage = shopperError.message || 'Failed to create shopper profile';
+          const errorDetails = shopperError.details ? ` (${shopperError.details})` : '';
+          
+          throw new Error(`${errorMessage}${errorDetails}`);
         }
-
-        router.push('/dashboard');
       }
+  
+      // 4. Redirect to dashboard
+      router.push('/dashboard');
     } catch (error) {
+      console.error("Registration failed:", error);
       setError(error.message);
     } finally {
       setLoading(false);
