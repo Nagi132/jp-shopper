@@ -185,68 +185,93 @@ export default function RequestDetailPage({ params }) {
 
             setLoadingMessages(true);
             try {
-                const { data, error } = await supabase
+                console.log('Fetching messages for request:', requestId);
+
+                // First, fetch the messages themselves
+                const { data: messagesData, error: messagesError } = await supabase
                     .from('messages')
-                    .select(`
-            *,
-            sender:sender_id(username, full_name)
-          `)
+                    .select('*')
                     .eq('request_id', requestId)
                     .order('created_at', { ascending: true });
 
-                if (error) {
-                    // Check if error is due to missing table
-                    if (error.code === 'PGRST200') {
-                        console.warn('Messages table not found - messaging functionality disabled');
-                        setMessages([]);
-                        return;
-                    }
-                    throw error;
+                if (messagesError) throw messagesError;
+
+                if (!messagesData || messagesData.length === 0) {
+                    setMessages([]);
+                    return;
                 }
 
-                setMessages(data || []);
+                // Then, fetch profiles for all senders in a separate query
+                const senderIds = [...new Set(messagesData.map(msg => msg.sender_id))];
+
+                const { data: profilesData, error: profilesError } = await supabase
+                    .from('profiles')
+                    .select('user_id, username, full_name')
+                    .in('user_id', senderIds);
+
+                if (profilesError) throw profilesError;
+
+                // Merge the data manually
+                const enrichedMessages = messagesData.map(message => {
+                    const senderProfile = profilesData?.find(p => p.user_id === message.sender_id);
+                    return {
+                        ...message,
+                        sender: senderProfile || { username: 'Unknown User', full_name: null }
+                    };
+                });
+
+                console.log('Enriched messages:', enrichedMessages);
+                setMessages(enrichedMessages);
 
                 // Mark messages as read
-                if (data && data.length > 0) {
-                    const unreadMessages = data
-                        .filter(msg => msg.sender_id !== user.id && !msg.is_read)
-                        .map(msg => msg.id);
+                const unreadMessages = messagesData
+                    .filter(msg => msg.sender_id !== user.id && !msg.is_read)
+                    .map(msg => msg.id);
 
-                    if (unreadMessages.length > 0) {
-                        await supabase
-                            .from('messages')
-                            .update({ is_read: true })
-                            .in('id', unreadMessages);
-                    }
+                if (unreadMessages.length > 0) {
+                    await supabase
+                        .from('messages')
+                        .update({ is_read: true })
+                        .in('id', unreadMessages);
                 }
             } catch (err) {
-                console.error('Error fetching messages:', err);
+                console.error('Error in message fetching:', err);
             } finally {
                 setLoadingMessages(false);
             }
         };
 
-        if (request && (request.status !== 'open' && request.status !== 'cancelled')) {
+        if (request) {
             fetchMessages();
 
-            // Set up real-time subscription for new messages
-            const subscription = supabase
-                .channel(`messages:${requestId}`)
+            // Set up real-time subscription with better error handling
+            const channel = supabase
+                .channel(`messages-${requestId}`)
                 .on('postgres_changes', {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'messages',
                     filter: `request_id=eq.${requestId}`
-                }, payload => {
-                    fetchMessages();
+                }, (payload) => {
+                    console.log('New message received:', payload);
+                    fetchMessages(); // Refetch all messages
                 })
-                .subscribe();
+                .subscribe((status) => {
+                    console.log('Subscription status:', status);
+                });
 
             return () => {
-                subscription.unsubscribe();
+                console.log('Unsubscribing from messages channel');
+                channel.unsubscribe();
             };
         }
-    }, [requestId, user, isCustomer, isShopper, request]);
+        // In fetchMessages
+        console.log('About to fetch messages as:', {
+            isCustomer,
+            isShopper,
+            userId: user?.id
+        });
+    }, [requestId, user, request]);
 
     const handleCancelRequest = async () => {
         if (!confirm('Are you sure you want to cancel this request?')) return;
@@ -274,48 +299,48 @@ export default function RequestDetailPage({ params }) {
     const handleSendProposal = async (e) => {
         e.preventDefault();
         setActionLoading(true);
-    
+
         try {
             // Get shopper profile id - but expect MULTIPLE profiles
             const { data: shopperProfiles, error: profileError } = await supabase
                 .from('shopper_profiles')
                 .select('id')
                 .eq('user_id', user.id);
-    
+
             if (profileError) {
                 console.error('Error fetching shopper profiles:', profileError);
                 throw new Error(`Failed to get shopper profiles: ${profileError.message || 'Unknown error'}`);
             }
-    
+
             if (!shopperProfiles || shopperProfiles.length === 0) {
                 throw new Error('No shopper profile found. Please set up your shopper profile first.');
             }
-    
+
             console.log('Found multiple shopper profiles:', shopperProfiles);
-            
+
             // Use the first shopper profile (or implement logic to choose the right one)
             const shopperProfileId = shopperProfiles[0].id;
-            
+
             console.log('Using shopper profile ID:', shopperProfileId);
-    
+
             // Check if shopper already sent a proposal
             const { data: existingProposals, error: checkError } = await supabase
                 .from('request_proposals')
                 .select('id')
                 .eq('request_id', requestId)
                 .eq('shopper_id', shopperProfileId);
-    
+
             if (checkError) {
                 console.error('Error checking existing proposals:', checkError);
                 throw new Error(`Failed to check existing proposals: ${checkError.message || 'Unknown error'}`);
             }
-    
+
             if (existingProposals && existingProposals.length > 0) {
                 alert('You have already sent a proposal for this request');
                 setShowProposalForm(false);
                 return;
             }
-    
+
             // Create a proposal
             const { data: newProposal, error } = await supabase
                 .from('request_proposals')
@@ -326,31 +351,31 @@ export default function RequestDetailPage({ params }) {
                     status: 'pending'
                 })
                 .select();
-    
+
             if (error) {
                 console.error('Error inserting proposal:', error);
                 throw new Error(`Failed to create proposal: ${error.message || 'Unknown error'}`);
             }
-    
+
             console.log('Created proposal:', newProposal);
-    
+
             // Show success message
             alert("Your proposal has been sent to the customer!");
             setShowProposalForm(false);
             setProposalMessage('');
-    
+
             // Refresh proposals (optional)
             const { data, error: refreshError } = await supabase
                 .from('request_proposals')
                 .select('*')
                 .eq('request_id', requestId);
-    
+
             if (refreshError) {
                 console.error('Error refreshing proposals:', refreshError);
             } else if (data) {
                 setProposals([...data]);
             }
-    
+
         } catch (err) {
             console.error('Error sending proposal:', err.message, err);
             alert(`Failed to send proposal: ${err.message || 'Unknown error'}`);
@@ -403,20 +428,20 @@ export default function RequestDetailPage({ params }) {
 
             if (requestError) throw requestError;
 
-// In handleAcceptProposal function in request detail page
-console.log("DEBUGGING PROPOSAL ACCEPTANCE:");
-console.log("Proposal being accepted:", proposal);
-console.log("Shopper_id from proposal:", proposal.shopper_id);
-console.log("Shopper profile data:", await supabase.from('shopper_profiles').select('*').eq('id', proposal.shopper_id).single());
+            // In handleAcceptProposal function in request detail page
+            console.log("DEBUGGING PROPOSAL ACCEPTANCE:");
+            console.log("Proposal being accepted:", proposal);
+            console.log("Shopper_id from proposal:", proposal.shopper_id);
+            console.log("Shopper profile data:", await supabase.from('shopper_profiles').select('*').eq('id', proposal.shopper_id).single());
 
-// After the request update
-const { data: updatedRequest } = await supabase
-  .from('requests')
-  .select('*')
-  .eq('id', requestId)
-  .single();
-  
-console.log("Updated request after acceptance:", updatedRequest);
+            // After the request update
+            const { data: updatedRequest } = await supabase
+                .from('requests')
+                .select('*')
+                .eq('id', requestId)
+                .single();
+
+            console.log("Updated request after acceptance:", updatedRequest);
 
             setRequest(updatedRequest);
             alert('Proposal accepted! The shopper has been assigned to your request.');
@@ -493,36 +518,36 @@ console.log("Updated request after acceptance:", updatedRequest);
     const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!messageText.trim()) return;
-    
+
         try {
             const newMessage = {
                 request_id: requestId,
                 sender_id: user.id,
                 content: messageText.trim(),
                 is_read: false,
-                created_at: new Date().toISOString() // Add this to ensure proper timestamp
+                created_at: new Date().toISOString() // Add timestamp explicitly
             };
-    
-            // Log the message being sent for debugging
+
             console.log('Sending message:', newMessage);
-    
+
             const { data, error } = await supabase
                 .from('messages')
                 .insert([newMessage])
-                .select(); // Add .select() to return the inserted message
-    
+                .select();
+
             if (error) {
                 console.error('Database error when saving message:', error);
                 throw error;
             }
-    
+
             console.log('Message saved successfully:', data);
-    
+
             // Clear the input
             setMessageText('');
-    
-            // Update UI with the actual saved message from the database
+
+            // Update UI with the actual saved message
             if (data && data[0]) {
+                // Add the sender info manually
                 setMessages([...messages, {
                     ...data[0],
                     sender: {
@@ -925,8 +950,8 @@ console.log("Updated request after acceptance:", updatedRequest);
                                     >
                                         <div
                                             className={`max-w-xs sm:max-w-md rounded-lg px-4 py-2 ${message.sender_id === user.id
-                                                    ? 'bg-blue-500 text-white'
-                                                    : 'bg-gray-100 text-gray-800'
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-gray-100 text-gray-800'
                                                 }`}
                                         >
                                             <div className="text-xs mb-1">
