@@ -2,17 +2,18 @@ import React from 'react';
 import { hasImageUrl, extractImageUrl, extractMessageText } from '@/utils/messageUtils';
 
 /**
- * A single message bubble component with enhanced styling
+ * A clean, custom message bubble component
  */
 export default function MessageBubble({ 
   message, 
   isCurrentUser, 
-  showSenderName, 
-  onImageClick 
+  showAvatar = false,
+  showTime = true,
+  onImageClick,
+  onReact
 }) {
   // Guard against undefined message
   if (!message || !message.content) {
-    console.warn('Received undefined message or message without content');
     return null;
   }
 
@@ -28,48 +29,69 @@ export default function MessageBubble({
         minute: '2-digit'
       }) 
     : '';
+    
+  // Generate initials for avatar
+  const getInitials = (name) => {
+    if (!name || typeof name !== 'string') return '?';
+    return name.split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   return (
-    <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} relative`}>
-      <div className="max-w-xs sm:max-w-md">
-        <div
-          className={`message-bubble px-4 py-3 
-            ${isCurrentUser
+    <div className={`message-wrapper`}>
+      <div className={`message-container ${isCurrentUser ? 'message-container-sent' : 'message-container-received'}`}>
+        {/* Avatar for received messages */}
+        {showAvatar && !isCurrentUser && (
+          <div className="avatar-container">
+            <div className="message-avatar">
+              {getInitials(message.senderName)}
+            </div>
+          </div>
+        )}
+        
+        {/* Message bubble */}
+        <div className={`message-bubble ${isCurrentUser
               ? 'message-bubble-sent'
               : 'message-bubble-received'
-            } 
-            mb-2`}
+          }`}
         >
-          {showSenderName && (
-            <div className="text-xs mb-1 font-semibold">
-              {message.senderName}
-            </div>
-          )}
-
           {/* Show image if present */}
           {imageUrl && (
-            <div className="message-image mb-2">
+            <div className="message-image">
               <img
                 src={imageUrl}
                 alt="Attachment"
-                className="rounded-lg max-w-full cursor-pointer hover:opacity-95 transition-opacity"
-                onClick={() => onImageClick(imageUrl)}
+                className="cursor-pointer rounded-md max-w-full"
+                onClick={() => onImageClick?.(imageUrl)}
               />
             </div>
           )}
 
           {/* Show message text if exists */}
           {messageText && (
-            <p className="text-sm leading-relaxed">{messageText}</p>
+            <div>{messageText}</div>
           )}
-
-          <div className="flex justify-end items-center mt-1">
-            <div className="message-time">
-              {formattedTime}
+          
+          {/* Show reactions */}
+          {message.reactions && message.reactions.length > 0 && (
+            <div className={`message-reactions ${isCurrentUser ? 'message-reactions-sent' : 'message-reactions-received'}`}>
+              {message.reactions.map((reaction, i) => (
+                <div key={i} className="message-reaction">{reaction.emoji}</div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
       </div>
+      
+      {/* Timestamp */}
+      {showTime && (
+        <div className={`message-time ${isCurrentUser ? 'message-time-sent' : 'message-time-received'}`}>
+          {formattedTime}
+        </div>
+      )}
     </div>
   );
 }

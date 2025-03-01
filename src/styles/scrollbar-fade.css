@@ -1,0 +1,42 @@
+/* Auto-hiding scrollbars - iOS/iPhone style */
+
+/* Base scrollbar styling */
+.auto-hide-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+  
+  /* Hide WebKit scrollbar when not in use */
+  .auto-hide-scrollbar::-webkit-scrollbar {
+    width: 0;
+    background: transparent;
+  }
+  
+  /* Show scrollbar when scrolling (class added via JS) */
+  .auto-hide-scrollbar.is-scrolling::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .auto-hide-scrollbar.is-scrolling::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+  }
+  
+  .auto-hide-scrollbar.is-scrolling::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  /* For Firefox - show only when scrolling */
+  .auto-hide-scrollbar.is-scrolling {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+  }
+  
+  /* Dark mode adjustments */
+  .dark .auto-hide-scrollbar.is-scrolling::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+  
+  .dark .auto-hide-scrollbar.is-scrolling {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  }

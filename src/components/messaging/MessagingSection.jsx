@@ -9,13 +9,13 @@ import soundManager from '@/utils/soundManager';
 import { convertToWebP } from '@/utils/messageUtils';
 
 // Import our components
-import MessageHeader from './MessageHeader';
 import MessageList from './MessageList';
-import MessageComposer from './MessageComposer';
+import MessageInput from './MessageInput';
 import ImageLightbox from './ImageLightbox';
 
 // Import styles
-import '@/styles/messaging.css';
+import '@/styles/custom-messaging.css';
+
 
 // Common quick replies
 const QUICK_REPLIES = {
@@ -38,7 +38,7 @@ const QUICK_REPLIES = {
 };
 
 /**
- * Enhanced messaging section component
+ * Enhanced messaging section with Instagram-like features
  */
 export default function MessagingSection({
   requestId,
@@ -52,13 +52,12 @@ export default function MessagingSection({
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messageText, setMessageText] = useState('');
-  
+
   // UI state
-  const [activeTab, setActiveTab] = useState("message");
   const [showImageError, setShowImageError] = useState(false);
   const [imageErrorMessage, setImageErrorMessage] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(true);
-  
+
   // Messaging indicators
   const [unreadMessageIds, setUnreadMessageIds] = useState(new Set());
   const [lastReadMessageId, setLastReadMessageId] = useState(null);
@@ -67,13 +66,16 @@ export default function MessagingSection({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [hasNewMessages, setHasNewMessages] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
-  
+
   // Image handling
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [showLightbox, setShowLightbox] = useState(false);
-  
+
+  // Expanded content state
+  const [expandedImages, setExpandedImages] = useState({});
+
   // Refs
   const previousMessagesLengthRef = useRef(0);
   const userScrolledRef = useRef(false);
@@ -107,7 +109,6 @@ export default function MessagingSection({
       }
     }
   };
-
   // Fetch messages from the database
   const fetchMessages = async (isInitialLoad = false) => {
     if (!requestId || !userId) return;
@@ -128,7 +129,8 @@ export default function MessagingSection({
         // Process messages with sender names
         const processedMessages = data.map(msg => ({
           ...msg,
-          senderName: msg.sender_id === userId ? 'You' : otherPersonName || 'Other person'
+          senderName: msg.sender_id === userId ? 'You' : otherPersonName || 'Other person',
+          hasImage: msg.content && msg.content.includes('📷 [Image]')
         }));
 
         // Set divider position for new messages
@@ -161,7 +163,7 @@ export default function MessagingSection({
             if (!isAtBottom) {
               const newUnreadIds = new Set(unreadMessageIds);
               otherPersonNewMessages.forEach(msg => newUnreadIds.add(msg.id));
-              
+
               setNewMessageCount(newUnreadIds.size);
               setUnreadMessageIds(newUnreadIds);
 
@@ -220,6 +222,37 @@ export default function MessagingSection({
     const interval = setInterval(() => fetchMessages(false), 3000);
     return () => clearInterval(interval);
   }, [requestId, userId, isAtBottom]);
+
+  // Handle emoji/reaction selection
+  // Handle reactions to messages
+  const handleReaction = async (messageId, emoji) => {
+    // Find the message
+    const message = messages.find(m => m.id === messageId);
+    if (!message) return;
+
+    // In a real app, you would update the database
+    // For now, just update the UI optimistically
+    const updatedMessages = messages.map(m => {
+      if (m.id === messageId) {
+        const reactions = m.reactions || [];
+        return {
+          ...m,
+          reactions: [...reactions, { emoji, user_id: userId }]
+        };
+      }
+      return m;
+    });
+
+    setMessages(updatedMessages);
+  };
+
+  // Toggle expanded state for images
+  const handleExpandImage = (messageId) => {
+    setExpandedImages(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
+    }));
+  };
 
   // Send a text message
   const handleSendMessage = async (e) => {
@@ -303,7 +336,6 @@ export default function MessagingSection({
     convertToWebP(file)
       .then(optimizedFile => {
         setSelectedImage(optimizedFile);
-        setActiveTab("message");
       })
       .catch(err => {
         console.error('Error in WebP conversion:', err);
@@ -411,6 +443,25 @@ export default function MessagingSection({
     }
   };
 
+  // Emoji selector handler
+  const handleEmojiSelect = () => {
+    // In a real app, you would show an emoji picker
+    // For now, just add a smile emoji
+    setMessageText(prev => prev + '😊');
+  };
+
+  // Audio recording handler
+  const handleAudioRecord = () => {
+    // In a real app, you would implement audio recording
+    alert('Audio recording would start here');
+  };
+
+  // Camera open handler
+  const handleCameraOpen = () => {
+    // In a real app, you would open the camera
+    alert('Camera would open here');
+  };
+
   // Toggle sound notifications
   const handleToggleSound = () => {
     const newState = soundManager.toggleSound();
@@ -455,17 +506,8 @@ export default function MessagingSection({
   };
 
   return (
-    <Card className={`${className} overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border-gray-200`}>
-      <MessageHeader 
-        otherPersonName={otherPersonName}
-        isCustomer={isCustomer}
-        hasNewMessages={hasNewMessages}
-        newMessageCount={newMessageCount}
-        soundEnabled={soundEnabled}
-        onToggleSound={handleToggleSound}
-      />
-      
-      <CardContent className="py-6">
+    <Card className={`${className} overflow-hidden`}>
+      <CardContent className="p-0">
         <MessageList 
           messages={messages}
           userId={userId}
@@ -473,43 +515,28 @@ export default function MessagingSection({
           isCustomer={isCustomer}
           isAtBottom={isAtBottom}
           newMessageCount={newMessageCount}
-          showNewMessagesDivider={showNewMessagesDivider}
-          dividerPosition={dividerPosition}
           onImageClick={(url) => {
             setLightboxImage(url);
             setShowLightbox(true);
           }}
           onScrollToBottom={() => scrollToBottom('smooth')}
           onScrollToNewMessages={scrollToNewMessages}
+          onReact={handleReaction}
           onScroll={handleScroll}
         />
         
-        <MessageComposer 
+        <MessageInput
           messageText={messageText}
           onMessageChange={setMessageText}
           onSendMessage={handleSendMessage}
           onFileSelect={handleFileUpload}
-          imagePreview={imagePreview}
-          onCancelImage={() => {
-            setSelectedImage(null);
-            setImagePreview(null);
-          }}
-          isCompleted={requestStatus === 'completed'}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          quickReplies={QUICK_REPLIES}
-          onQuickReplySelect={(reply) => {
-            setMessageText(reply);
-            setActiveTab("message");
-          }}
-          isCustomer={isCustomer}
-          showError={showImageError}
-          errorMessage={imageErrorMessage}
-          onErrorClose={() => setShowImageError(false)}
+          onEmojiSelect={handleEmojiSelect}
+          onAudioRecord={handleAudioRecord}
+          onCameraOpen={handleCameraOpen}
+          isDisabled={requestStatus === 'completed'}
         />
       </CardContent>
       
-      {/* Image Lightbox */}
       {showLightbox && (
         <ImageLightbox 
           imageUrl={lightboxImage}
