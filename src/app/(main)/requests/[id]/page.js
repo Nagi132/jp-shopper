@@ -14,7 +14,7 @@ import RequestDetails from '@/components/requests/RequestDetails';
 import RequestActionButtons from '@/components/requests/RequestActionButtons';
 import ProposalsList from '@/components/requests/ProposalsList';
 import ProposalForm from '@/components/requests/ProposalForm';
-import MessagingSection from '@/components/requests/MessagingSection';
+import MessagingSection from '@/components/messaging/MessagingSection';
 import CheckoutForm from '@/components/payments/CheckoutForm';
 
 // Initialize Stripe
