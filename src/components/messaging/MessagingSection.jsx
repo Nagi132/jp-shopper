@@ -10,12 +10,11 @@ import { convertToWebP } from '@/utils/messageUtils';
 
 // Import our components
 import MessageList from './MessageList';
-import MessageInput from './MessageInput';
+import MessageComposer from './MessageComposer';
 import ImageLightbox from './ImageLightbox';
 
 // Import styles
 import '@/styles/custom-messaging.css';
-
 
 // Common quick replies
 const QUICK_REPLIES = {
@@ -57,6 +56,7 @@ export default function MessagingSection({
   const [showImageError, setShowImageError] = useState(false);
   const [imageErrorMessage, setImageErrorMessage] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [activeTab, setActiveTab] = useState("message");
 
   // Messaging indicators
   const [unreadMessageIds, setUnreadMessageIds] = useState(new Set());
@@ -109,6 +109,7 @@ export default function MessagingSection({
       }
     }
   };
+  
   // Fetch messages from the database
   const fetchMessages = async (isInitialLoad = false) => {
     if (!requestId || !userId) return;
@@ -307,7 +308,7 @@ export default function MessagingSection({
 
   // Handle file selection for image upload
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     // Check file size (5MB limit)
@@ -341,6 +342,17 @@ export default function MessagingSection({
         console.error('Error in WebP conversion:', err);
         setSelectedImage(file);
       });
+  };
+
+  // Handle canceling image selection
+  const handleCancelImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    // Reset file input
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) {
+      fileInput.value = '';
+    }
   };
 
   // Handle sending a message with an image
@@ -443,6 +455,12 @@ export default function MessagingSection({
     }
   };
 
+  // Handle quick reply selection
+  const handleQuickReplySelect = (text) => {
+    setMessageText(text);
+    setActiveTab("message");
+  };
+
   // Emoji selector handler
   const handleEmojiSelect = () => {
     // In a real app, you would show an emoji picker
@@ -525,15 +543,22 @@ export default function MessagingSection({
           onScroll={handleScroll}
         />
         
-        <MessageInput
+        <MessageComposer
           messageText={messageText}
           onMessageChange={setMessageText}
           onSendMessage={handleSendMessage}
           onFileSelect={handleFileUpload}
-          onEmojiSelect={handleEmojiSelect}
-          onAudioRecord={handleAudioRecord}
-          onCameraOpen={handleCameraOpen}
-          isDisabled={requestStatus === 'completed'}
+          imagePreview={imagePreview}
+          onCancelImage={handleCancelImage}
+          isCompleted={requestStatus === 'completed'}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          quickReplies={QUICK_REPLIES}
+          onQuickReplySelect={handleQuickReplySelect}
+          isCustomer={isCustomer}
+          showError={showImageError}
+          errorMessage={imageErrorMessage}
+          onErrorClose={() => setShowImageError(false)}
         />
       </CardContent>
       
