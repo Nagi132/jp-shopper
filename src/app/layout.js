@@ -1,4 +1,5 @@
 import './globals.css'
+
 export const metadata = {
   title: 'Japan Personal Shopper Marketplace',
   description: 'Connect with personal shoppers in Japan for exclusive items',
