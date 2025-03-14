@@ -5,11 +5,11 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
-import { Bell, Home, Search, Plus, ShoppingBag, User } from 'lucide-react';
+import { Bell, Home, Search, Plus, ShoppingBag, User, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Bottom Navigation Bar Component
-const BottomNav = () => {
+const BottomNav = ({ isShopper }) => {
   const pathname = usePathname();
   
   // Helper to check if a path is active
@@ -38,6 +38,14 @@ const BottomNav = () => {
           <span className="text-xs mt-1">Requests</span>
         </Link>
         
+        {/* Conditionally show Settings link only for shoppers */}
+        {isShopper && (
+          <Link href="/shoppers/settings" className={`w-12 h-12 flex flex-col items-center justify-center ${isActive('/shoppers/settings') ? 'text-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}>
+            <Settings size={20} />
+            <span className="text-xs mt-1">Payments</span>
+          </Link>
+        )}
+        
         <Link href="/profile" className={`w-12 h-12 flex flex-col items-center justify-center ${isActive('/profile') ? 'text-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}>
           <User size={20} />
           <span className="text-xs mt-1">Profile</span>
@@ -50,17 +58,33 @@ const BottomNav = () => {
 export default function MainLayout({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isShopper, setIsShopper] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) {
-        router.push('/login');
-      } else {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!data.user) {
+          router.push('/login');
+          return;
+        }
+        
         setUser(data.user);
+        
+        // Check if user is a shopper
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_shopper')
+          .eq('user_id', data.user.id)
+          .single();
+          
+        setIsShopper(profile?.is_shopper || false);
+      } catch (err) {
+        console.error('Error loading user profile:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     getUser();
@@ -112,7 +136,7 @@ export default function MainLayout({ children }) {
       </main>
       
       {/* Bottom navigation */}
-      <BottomNav />
+      <BottomNav isShopper={isShopper} />
     </div>
   );
 }
