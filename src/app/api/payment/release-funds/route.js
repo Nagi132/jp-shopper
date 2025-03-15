@@ -23,15 +23,26 @@ export async function POST(request) {
     }
     
     // Get transaction info
-    const { data: transaction, error: transactionError } = await supabase
+    const { data: transactions, error: transactionError } = await supabase
       .from('transactions')
       .select('*')
       .eq('request_id', requestId)
-      .single();
+      .order('created_at', { ascending: true });
       
-    if (transactionError || !transaction) {
+    if (transactionError || !transactions || transactions.length === 0) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
+    
+    // Get main transaction (first one)
+    const mainTransaction = transactions[0];
+    
+    // Calculate total amount to transfer including shipping
+    const itemAmount = mainTransaction.amount;
+    const shippingAmount = requestData.shipping_cost || mainTransaction.shipping_deposit;
+    const platformFee = mainTransaction.fee;
+    
+    // Total to transfer = item price + shipping - platform fee
+    const transferAmount = itemAmount + shippingAmount - platformFee;
     
     // Get shopper's Stripe account ID
     const { data: shopperUser, error: shopperError } = await supabase
@@ -44,9 +55,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Shopper payment account not found' }, { status: 404 });
     }
     
-    // Calculate amount to transfer (total minus fee)
-    const transferAmount = transaction.amount - transaction.fee;
-    
     // Create transfer to shopper's account
     const transfer = await stripe.transfers.create({
       amount: transferAmount,
@@ -55,7 +63,10 @@ export async function POST(request) {
       transfer_group: requestId,
       metadata: {
         requestId,
-        transactionId: transaction.id
+        transactionId: mainTransaction.id,
+        itemAmount,
+        shippingAmount,
+        platformFee
       }
     });
     
@@ -67,7 +78,7 @@ export async function POST(request) {
         status: 'completed',
         updated_at: new Date().toISOString()
       })
-      .eq('id', transaction.id);
+      .eq('id', mainTransaction.id);
       
     if (updateError) {
       console.error('Error updating transaction:', updateError);
@@ -86,9 +97,15 @@ export async function POST(request) {
       console.error('Error updating request:', requestUpdateError);
     }
     
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true,
+      transferAmount,
+      itemAmount,
+      shippingAmount,
+      platformFee
+    });
   } catch (error) {
     console.error('Error releasing funds:', error);
-    return NextResponse.json({ error: 'Failed to release funds' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to release funds: ' + error.message }, { status: 500 });
   }
 }

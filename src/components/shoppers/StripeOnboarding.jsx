@@ -11,6 +11,7 @@ export default function StripeOnboarding() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState(null);
+  const [statusChecking, setStatusChecking] = useState(false);
   const [onboardingStatus, setOnboardingStatus] = useState('not_started'); // not_started, pending, complete
   const [accountId, setAccountId] = useState(null);
   
@@ -50,57 +51,107 @@ export default function StripeOnboarding() {
     }
   };
   
-  // In the startOnboarding function in StripeOnboarding.jsx
-const startOnboarding = async () => {
-  setLoading(true);
-  setError(null);
-  
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+  // Manual status check function that calls the API
+  const manuallyCheckStatus = async () => {
+    setStatusChecking(true);
+    setError(null);
     
-    console.log('Starting onboarding for user:', user.id);
-    
-    // Ensure the user is marked as a shopper in their profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_shopper')
-      .eq('user_id', user.id)
-      .single();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
       
-    // If profile exists but is_shopper is false, update it locally first
-    if (profile && !profile.is_shopper) {
-      console.log('Updating local profile to set is_shopper to true');
-      await supabase
+      console.log('Manually checking onboarding status for:', user.id);
+      
+      // Call the status check endpoint
+      const response = await fetch('/api/shopper/check-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to check status');
+      }
+      
+      console.log('Status check response:', data);
+      
+      if (data.status === 'complete') {
+        setOnboardingStatus('complete');
+        if (data.accountId) setAccountId(data.accountId);
+        
+        // If the database was updated, reload to show the changes
+        if (data.updated) {
+          alert('Your account has been verified as complete! The page will refresh.');
+          window.location.reload();
+        } else {
+          alert('Your account is verified! You can now receive payments.');
+        }
+      } else {
+        // Not yet complete
+        alert('Your account setup is not yet complete. Please continue the setup process.');
+      }
+      
+    } catch (err) {
+      console.error('Error checking status:', err);
+      setError(`Failed to check status: ${err.message}`);
+    } finally {
+      setStatusChecking(false);
+    }
+  };
+  
+  // In the startOnboarding function in StripeOnboarding.jsx
+  const startOnboarding = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      
+      console.log('Starting onboarding for user:', user.id);
+      
+      // Ensure the user is marked as a shopper in their profile
+      const { data: profile } = await supabase
         .from('profiles')
-        .update({ is_shopper: true })
-        .eq('user_id', user.id);
+        .select('is_shopper')
+        .eq('user_id', user.id)
+        .single();
+        
+      // If profile exists but is_shopper is false, update it locally first
+      if (profile && !profile.is_shopper) {
+        console.log('Updating local profile to set is_shopper to true');
+        await supabase
+          .from('profiles')
+          .update({ is_shopper: true })
+          .eq('user_id', user.id);
+      }
+      
+      const response = await fetch('/api/shopper/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          returnUrl: window.location.href
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start onboarding');
+      }
+      
+      // Redirect to Stripe onboarding
+      window.location.href = data.url;
+    } catch (err) {
+      console.error('Onboarding error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    
-    const response = await fetch('/api/shopper/onboarding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: user.id,
-        returnUrl: window.location.href
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to start onboarding');
-    }
-    
-    // Redirect to Stripe onboarding
-    window.location.href = data.url;
-  } catch (err) {
-    console.error('Onboarding error:', err);
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
   
   // Show loader while checking status
   if (checking) {
@@ -170,7 +221,7 @@ const startOnboarding = async () => {
           
           <Button 
             onClick={startOnboarding}
-            disabled={loading}
+            disabled={loading || statusChecking}
             className="w-full"
           >
             {loading ? (
@@ -185,6 +236,30 @@ const startOnboarding = async () => {
               </>
             )}
           </Button>
+          
+          {/* Manual check status button */}
+          <Button 
+            onClick={manuallyCheckStatus}
+            disabled={statusChecking || loading}
+            variant="outline"
+            className="mt-4 w-full"
+          >
+            {statusChecking ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Checking status...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Check Status Now
+              </>
+            )}
+          </Button>
+          
+          <div className="mt-4 text-sm text-gray-500">
+            <p>If you've already completed your account setup but still see this message, click "Check Status Now" to refresh your status.</p>
+          </div>
         </CardContent>
       </Card>
     );

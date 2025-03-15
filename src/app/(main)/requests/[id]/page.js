@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 
-// Import our new components
+// Import components
 import RequestHeader from '@/components/requests/RequestHeader';
 import RequestDetails from '@/components/requests/RequestDetails';
 import RequestActionButtons from '@/components/requests/RequestActionButtons';
@@ -16,6 +16,10 @@ import ProposalsList from '@/components/requests/ProposalsList';
 import ProposalForm from '@/components/requests/ProposalForm';
 import MessagingSection from '@/components/messaging/MessagingSection';
 import CheckoutForm from '@/components/payments/CheckoutForm';
+
+// Import shipping components
+import ShippingVerification from '@/components/shipping/ShippingVerification';
+import ShippingApprovalRequest from '@/components/shipping/ShippingApprovalRequest';
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
@@ -25,7 +29,7 @@ export default function RequestDetailPage({ params }) {
     const requestId = unwrappedParams.id;
     const router = useRouter();
 
-    // State
+    // Core state
     const [user, setUser] = useState(null);
     const [request, setRequest] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -39,9 +43,14 @@ export default function RequestDetailPage({ params }) {
     const [loadingProposals, setLoadingProposals] = useState(false);
     const [shopperName, setShopperName] = useState(null);
     const [customerName, setCustomerName] = useState(null);
-    // Fetch the request data
+    
+    // Shipping-related state
+    const [shippingVerification, setShippingVerification] = useState(null);
+    const [loadingShippingVerification, setLoadingShippingVerification] = useState(false);
+    
+    // Fetch the request data and shipping verification
     useEffect(() => {
-        const fetchRequest = async () => {
+        const fetchRequestData = async () => {
             try {
               const { data: { user } } = await supabase.auth.getUser();
               if (!user) {
@@ -110,16 +119,6 @@ export default function RequestDetailPage({ params }) {
                     console.error('Error fetching shopper profile name:', profileError);
                     setShopperName('Shopper');
                   }
-                  
-                  // Debug log for messaging section visibility
-                  console.log('Messaging section visibility check:', {
-                    userIsCustomer,
-                    isShopper: userIsShopper,
-                    requestStatus: data.status,
-                    shouldShow: (userIsCustomer || userIsShopper) && 
-                                data.status !== 'open' && 
-                                data.status !== 'cancelled'
-                  });
                 }
               } else {
                 console.log('Request has no shopper assigned yet');
@@ -129,7 +128,6 @@ export default function RequestDetailPage({ params }) {
               // If current user is shopper, get customer name for messaging
               if (data.customer_id && !userIsCustomer) {
                 try {
-                  // Fix: Changed the query to use .eq instead of url query parameters
                   const { data: customerProfile } = await supabase
                     .from('profiles')
                     .select('user_id, username, full_name')
@@ -145,6 +143,28 @@ export default function RequestDetailPage({ params }) {
                   setCustomerName('Customer');
                 }
               }
+              
+              // Fetch shipping verification data if request is in appropriate status
+              if (['paid', 'purchased', 'shipped', 'completed'].includes(data.status)) {
+                setLoadingShippingVerification(true);
+                try {
+                  const { data: verificationData, error: verificationError } = await supabase
+                    .from('shipping_verifications')
+                    .select('*')
+                    .eq('request_id', requestId)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                    
+                  if (!verificationError && verificationData && verificationData.length > 0) {
+                    console.log('Found shipping verification:', verificationData[0]);
+                    setShippingVerification(verificationData[0]);
+                  }
+                } catch (verificationErr) {
+                  console.error('Error fetching shipping verification:', verificationErr);
+                } finally {
+                  setLoadingShippingVerification(false);
+                }
+              }
           
             } catch (err) {
               console.error('Error fetching request:', err);
@@ -154,7 +174,7 @@ export default function RequestDetailPage({ params }) {
             }
           };
 
-        fetchRequest();
+        fetchRequestData();
     }, [requestId, router]);
 
     // Fetch proposals
@@ -168,15 +188,15 @@ export default function RequestDetailPage({ params }) {
                 let query = supabase
                     .from('request_proposals')
                     .select(`
-            *,
-            shopper_profiles:shopper_id(
-              id, 
-              user_id, 
-              location, 
-              rating,
-              verification_level
-            )
-          `)
+                        *,
+                        shopper_profiles:shopper_id(
+                          id, 
+                          user_id, 
+                          location, 
+                          rating,
+                          verification_level
+                        )
+                    `)
                     .eq('request_id', requestId);
 
                 const { data, error } = await query;
@@ -396,6 +416,7 @@ export default function RequestDetailPage({ params }) {
         }
     };
 
+    // Handle updating the request status
     const handleUpdateStatus = async (newStatus) => {
         if (!confirm(`Are you sure you want to mark this request as ${newStatus}?`)) return;
 
@@ -417,6 +438,109 @@ export default function RequestDetailPage({ params }) {
         } catch (err) {
             console.error(`Error updating request status to ${newStatus}:`, err);
             alert('Failed to update request status. Please try again.');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Handle shipping verification submission
+    const handleShippingVerificationSubmit = async (data) => {
+        setShippingVerification(data);
+        
+        // If no additional approval needed, update to shipped
+        if (!data.needs_approval) {
+            // Update request as verified and ready for shipping
+            try {
+                const { error: updateError } = await supabase
+                    .from('requests')
+                    .update({ 
+                        shipping_verified: true,
+                        shipping_cost: data.actual_cost
+                    })
+                    .eq('id', requestId);
+                    
+                if (updateError) {
+                    console.error('Error updating request with shipping verification:', updateError);
+                } else {
+                    // If all good, update the status to shipped
+                    handleUpdateStatus('shipped');
+                }
+            } catch (err) {
+                console.error('Error updating shipping verification:', err);
+            }
+        }
+    };
+
+    // Handle shipping approval from customer
+    const handleShippingApproval = async () => {
+        try {
+            setActionLoading(true);
+            
+            // Update verification status
+            const { error: verificationError } = await supabase
+                .from('shipping_verifications')
+                .update({ 
+                    status: 'approved',
+                    approval_date: new Date().toISOString()
+                })
+                .eq('id', shippingVerification.id);
+                
+            if (verificationError) throw verificationError;
+            
+            // Update request
+            const { error: requestError } = await supabase
+                .from('requests')
+                .update({ 
+                    shipping_verified: true,
+                    shipping_cost: shippingVerification.actual_cost
+                })
+                .eq('id', requestId);
+                
+            if (requestError) throw requestError;
+            
+            // Update local state
+            setShippingVerification(prev => ({...prev, status: 'approved'}));
+            setRequest(prev => ({
+                ...prev, 
+                shipping_verified: true,
+                shipping_cost: shippingVerification.actual_cost
+            }));
+            
+            // Update to shipped status
+            handleUpdateStatus('shipped');
+            
+        } catch (err) {
+            console.error('Error approving shipping:', err);
+            alert('Failed to approve shipping. Please try again.');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Handle shipping rejection from customer
+    const handleShippingRejection = async () => {
+        try {
+            setActionLoading(true);
+            
+            // Update verification status
+            const { error: verificationError } = await supabase
+                .from('shipping_verifications')
+                .update({ 
+                    status: 'rejected',
+                    rejection_date: new Date().toISOString()
+                })
+                .eq('id', shippingVerification.id);
+                
+            if (verificationError) throw verificationError;
+            
+            // Update local state
+            setShippingVerification(prev => ({...prev, status: 'rejected'}));
+            
+            alert('You have rejected the additional shipping cost. Please contact the shopper to discuss alternatives.');
+            
+        } catch (err) {
+            console.error('Error rejecting shipping:', err);
+            alert('Failed to reject shipping. Please try again.');
         } finally {
             setActionLoading(false);
         }
@@ -470,6 +594,7 @@ export default function RequestDetailPage({ params }) {
             <RequestDetails
                 request={request}
                 shopperName={shopperName}
+                shippingVerification={shippingVerification}
                 className="mb-6"
             />
 
@@ -506,6 +631,30 @@ export default function RequestDetailPage({ params }) {
                     onSubmit={handleSendProposal}
                     onCancel={() => setShowProposalForm(false)}
                     loading={actionLoading}
+                    className="mb-6"
+                />
+            )}
+            
+            {/* Shipping Verification Form - only for shoppers after purchase */}
+            {isShopper && request.status === 'purchased' && !request.shipping_verified && (
+                <ShippingVerification
+                    requestId={requestId}
+                    estimatedShippingCost={request.shipping_deposit || 0}
+                    onSubmitSuccess={handleShippingVerificationSubmit}
+                    className="mb-6"
+                />
+            )}
+            
+            {/* Shipping Approval Request - for customers when additional payment is needed */}
+            {isCustomer && 
+             shippingVerification && 
+             shippingVerification.needs_approval && 
+             shippingVerification.status === 'pending_approval' && (
+                <ShippingApprovalRequest
+                    verification={shippingVerification}
+                    requestData={request}
+                    onApprove={handleShippingApproval}
+                    onReject={handleShippingRejection}
                     className="mb-6"
                 />
             )}

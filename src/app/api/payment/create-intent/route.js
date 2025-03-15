@@ -8,7 +8,7 @@ const PLATFORM_FEE_PERCENT = 10; // 10% marketplace fee
 
 export async function POST(request) {
   try {
-    const { requestId, customerId, amount } = await request.json();
+    const { requestId, customerId, amount, shippingCost = 0 } = await request.json();
     
     // Verify request exists and belongs to customer
     const { data: requestData, error: requestError } = await supabase
@@ -25,14 +25,19 @@ export async function POST(request) {
     // Calculate platform fee
     const fee = Math.round(amount * (PLATFORM_FEE_PERCENT / 100));
     
+    // Calculate total amount including shipping deposit
+    const totalAmount = amount + shippingCost;
+    
     // Create payment intent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount, // Amount in JPY (no need to convert to cents as JPY has no decimals)
+      amount: totalAmount, // Amount in JPY (no decimals needed)
       currency: 'jpy',
       metadata: {
         requestId,
         customerId,
-        fee
+        fee,
+        itemAmount: amount,
+        shippingAmount: shippingCost
       }
     });
     
@@ -42,7 +47,9 @@ export async function POST(request) {
       .insert([{
         request_id: requestId,
         customer_id: customerId,
-        amount,
+        amount: amount,
+        shipping_deposit: shippingCost,
+        total_amount: totalAmount,
         fee,
         payment_intent_id: paymentIntent.id,
         status: 'pending'

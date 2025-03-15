@@ -24,7 +24,7 @@ export async function POST(request) {
       console.error('Error fetching profile:', profileError);
       // If no profile exists, create one with is_shopper=true
       if (profileError.code === 'PGRST116') {
-        const { data: newProfile, error: createError } = await supabaseAdminAdmin
+        const { data: newProfile, error: createError } = await supabaseAdmin
           .from('profiles')
           .insert({
             user_id: userId,
@@ -47,7 +47,7 @@ export async function POST(request) {
     // If profile exists but is_shopper is false, update it
     if (profile && profile.is_shopper !== true) {
       console.log('Updating profile to set is_shopper to true');
-      const { error: updateError } = await supabaseAdminAdmin
+      const { error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({ is_shopper: true })
         .eq('user_id', userId);
@@ -55,6 +55,19 @@ export async function POST(request) {
       if (updateError) {
         console.error('Error updating profile:', updateError);
       }
+    }
+    
+    // Ensure we're using HTTPS URLs for Stripe in live mode
+    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    
+    // Force HTTPS for all stripe redirect URLs
+    if (baseUrl.startsWith('http://') && process.env.NODE_ENV === 'production') {
+      baseUrl = baseUrl.replace('http://', 'https://');
+    }
+    
+    // Ensure base URL doesn't have trailing slash
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1);
     }
     
     // Create a Stripe account for the shopper
@@ -74,7 +87,7 @@ export async function POST(request) {
     console.log('Created Stripe account:', account.id);
     
     // Update user profile with Stripe account ID
-    const { error: stripeUpdateError } = await supabaseAdminAdmin
+    const { error: stripeUpdateError } = await supabaseAdmin
       .from('profiles')
       .update({ 
         stripe_account_id: account.id,
@@ -84,13 +97,24 @@ export async function POST(request) {
       
     if (stripeUpdateError) {
       console.error('Error updating profile with Stripe account ID:', stripeUpdateError);
+      // Don't fail here - we'll create the account link anyway
     }
+    
+    const refresh_url = `${baseUrl}/shoppers/settings?refresh=true`;
+    const return_url = returnUrl ? 
+      (returnUrl.startsWith('http') ? returnUrl : `${baseUrl}${returnUrl.startsWith('/') ? returnUrl : '/' + returnUrl}`) : 
+      `${baseUrl}/shoppers/settings`;
+    
+    console.log('Creating account link with URLs:', {
+      refresh_url,
+      return_url
+    });
     
     // Create account onboarding link
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/shoppers/settings?refresh=true`,
-      return_url: returnUrl || `${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/shoppers/settings`,
+      refresh_url,
+      return_url,
       type: 'account_onboarding',
     });
     
