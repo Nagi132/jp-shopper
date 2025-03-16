@@ -61,12 +61,12 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-  
+
     try {
       // Validate inputs first
       await validateInputs();
 
-      // 1. Register the user
+      // 1. Register the user with email confirmation
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -75,15 +75,23 @@ export default function Register() {
             username,
             full_name: fullName,
             is_shopper: userType === 'shopper'
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/auth/confirm`
         }
       });
-  
+
       if (authError) throw authError;
       if (!authData.user) throw new Error("Authentication succeeded but no user was returned");
-  
+
+      // Check if confirmation was sent
+      if (authData.user && !authData.user.confirmed_at && !authData.user.email_confirmed_at) {
+        // Show confirmation message
+        router.push('/auth/verification-sent?email=' + encodeURIComponent(email));
+        return;
+      }
+
       console.log("Auth successful, user ID:", authData.user.id);
-  
+
       // 2. Create the user profile with transaction-like approach
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -94,18 +102,18 @@ export default function Register() {
           is_shopper: userType === 'shopper',
         })
         .select();
-  
+
       if (profileError) {
         console.error("Profile creation error:", profileError);
-        
+
         // Check for specific error types
         if (profileError.code === '23505') {
           throw new Error('Username is already in use. Please choose another.');
         }
-        
+
         throw new Error(`Failed to create profile: ${profileError.message}`);
       }
-  
+
       // 3. If they're a shopper, create the shopper profile
       if (userType === 'shopper') {
         const { data: shopperData, error: shopperError } = await supabase
@@ -120,20 +128,24 @@ export default function Register() {
             languages: ['Japanese'],
           })
           .select();
-  
+
         if (shopperError) {
           console.error("Shopper profile creation error:", shopperError);
-          
+
           // Detailed error handling
           const errorMessage = shopperError.message || 'Failed to create shopper profile';
           const errorDetails = shopperError.details ? ` (${shopperError.details})` : '';
-          
+
           throw new Error(`${errorMessage}${errorDetails}`);
         }
       }
-  
-      // 4. Redirect to dashboard
-      router.push('/dashboard');
+
+      // 4. Redirect to dashboard or verification page
+      if (authData.user.email_confirmed_at) {
+        router.push('/dashboard');
+      } else {
+        router.push('/auth/verification-sent?email=' + encodeURIComponent(email));
+      }
     } catch (error) {
       console.error("Registration failed:", error);
       setError(error.message);
