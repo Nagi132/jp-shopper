@@ -9,6 +9,7 @@ export default function RequestActionButtons({
   isCustomer,
   isShopper,
   loading = false,
+  shippingVerificationActive = false, // New prop to check if verification is active
   onCancel,
   onShowPayment,
   onUpdateStatus,
@@ -88,8 +89,8 @@ export default function RequestActionButtons({
         </Button>
       )}
 
-      {/* Shopper "shipped" button */}
-      {isShopper && request.status === 'purchased' && (
+      {/* Shopper "shipped" button - Only show if shipping verification isn't active */}
+      {isShopper && request.status === 'purchased' && !shippingVerificationActive && (
         <Button
           onClick={() => handleStatusUpdate('shipped')}
           disabled={isButtonLoading}

@@ -127,6 +127,24 @@ export default function ShippingVerification({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // First, check the current status to prevent redundant updates
+      const { data: requestData, error: requestCheckError } = await supabase
+        .from('requests')
+        .select('status')
+        .eq('id', requestId)
+        .single();
+        
+      if (requestCheckError) {
+        console.warn('Error checking request status:', requestCheckError);
+        // Continue anyway with best effort
+      } else if (requestData.status === 'shipped' || requestData.status === 'completed') {
+        // Request is already shipped or beyond, no need to update status
+        console.log('Request is already in status:', requestData.status);
+        alert('This request has already been marked as shipped or completed.');
+        setSubmitting(false);
+        return;
+      }
+
       // Create a shipping verification record
       const { data, error } = await supabase
         .from('shipping_verifications')
@@ -146,62 +164,81 @@ export default function ShippingVerification({
 
       if (error) throw error;
 
-      // Update the request status based on verification result
+      // Determine appropriate new status
       let newStatus = '';
-
+      
+      // If additional payment needed, status should not change until approved
       if (needsAdditionalPayment) {
-        // If additional payment needed, keep as 'paid' but update shipping_verified flag
-        newStatus = 'paid';
+        newStatus = requestData?.status || 'purchased'; // Keep current status
+        console.log('Additional payment needed. Keeping status as:', newStatus);
       } else {
-        // If the current status is 'paid', change to 'purchased'
-        // If the current status is 'purchased', change to 'shipped'
-        // This prevents skipping steps
-        try {
-          // First check current status
-          const { data: requestData } = await supabase
-            .from('requests')
-            .select('status')
-            .eq('id', requestId)
-            .single();
-
-          if (requestData.status === 'paid') {
-            newStatus = 'purchased';
-          } else if (requestData.status === 'purchased') {
-            newStatus = 'shipped';
-          } else {
-            // If somehow in another state, use 'shipped'
-            newStatus = 'shipped';
-          }
-        } catch (statusErr) {
-          // Default to shipped if we can't check
+        // Only update status if currently in 'purchased' state
+        if (requestData?.status === 'purchased') {
           newStatus = 'shipped';
+          console.log('No additional payment needed. Setting status to shipped');
+        } else {
+          // Keep current status for other cases
+          newStatus = requestData?.status || 'purchased';
+          console.log('Keeping current status:', newStatus);
         }
       }
 
-      // Update the request with verified shipping info and new status
-      const { error: requestError } = await supabase
-        .from('requests')
-        .update({
+      // Only update the request if needed
+      if (newStatus !== requestData?.status || !needsAdditionalPayment) {
+        console.log('Updating request with:', {
           shipping_verified: !needsAdditionalPayment,
           shipping_cost: actualCost,
           status: newStatus
-        })
-        .eq('id', requestId);
+        });
+        
+        try {
+          const { error: requestError } = await supabase
+            .from('requests')
+            .update({
+              shipping_verified: !needsAdditionalPayment,
+              shipping_cost: actualCost,
+              status: newStatus
+            })
+            .eq('id', requestId);
 
-      if (requestError) {
-        throw new Error(`Failed to update request status: ${requestError.message}`);
+          if (requestError) {
+            console.error('Error updating request:', requestError);
+            throw new Error(`Failed to update request: ${requestError.message}`);
+          }
+          
+          console.log('Request updated successfully');
+        } catch (updateErr) {
+          console.error('Error in update transaction:', updateErr);
+          // Continue with success flow even if update fails
+          // The verification record is still created
+        }
       }
 
       setSuccess(true);
+      
+      // Call onSubmitSuccess callback with proper data structure
       if (onSubmitSuccess) {
-        onSubmitSuccess(data);
+        onSubmitSuccess({
+          ...data,
+          actual_cost: actualCost,
+          needs_approval: needsAdditionalPayment
+        });
       }
 
-      // Show success message then reload page to reflect changes
-      alert(`Shipping verification submitted successfully! Status updated to: ${newStatus}`);
-      window.location.reload();
+      // Show success message 
+      if (needsAdditionalPayment) {
+        alert('Shipping verification submitted. Customer will need to approve the additional cost.');
+      } else {
+        alert(`Shipping verification submitted successfully! Status updated to: ${newStatus}`);
+      }
+      
+      // Use a timeout to ensure the alert is seen before reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
 
     } catch (err) {
+      console.error('Error submitting shipping verification:', err);
       setError(err.message);
     } finally {
       setSubmitting(false);

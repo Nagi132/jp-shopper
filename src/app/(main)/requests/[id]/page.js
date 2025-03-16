@@ -499,8 +499,8 @@ export default function RequestDetailPage({ params }) {
     const handleShippingVerificationSubmit = async (data) => {
         setShippingVerification(data);
 
-        // If no additional approval needed, update to shipped
-        if (!data.needs_approval) {
+        // If no additional approval needed, and status is purchased, update to shipped
+        if (!data.needs_approval && request.status === 'purchased') {
             try {
                 console.log("Updating request status to shipped");
 
@@ -510,7 +510,7 @@ export default function RequestDetailPage({ params }) {
                     .update({
                         shipping_verified: true,
                         shipping_cost: data.actual_cost,
-                        status: 'shipped',  // Explicitly update status
+                        status: 'shipped',
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', requestId);
@@ -520,12 +520,20 @@ export default function RequestDetailPage({ params }) {
                     alert('There was an issue updating the request status. Please try again.');
                 } else {
                     console.log("Request successfully updated to shipped status");
-                    // Force reload to show updated status
-                    window.location.reload();
+
+                    // Update local state before reload
+                    setRequest(prev => ({
+                        ...prev,
+                        status: 'shipped',
+                        shipping_verified: true,
+                        shipping_cost: data.actual_cost
+                    }));
+
+                    // Don't reload immediately - let the component's own success flow handle it
                 }
             } catch (err) {
                 console.error('Error updating shipping verification:', err);
-                alert('Error updating request status. Please contact support.');
+                // Don't show an alert here - let the component handle its own errors
             }
         }
     };
@@ -643,6 +651,7 @@ export default function RequestDetailPage({ params }) {
                     isCustomer={isCustomer}
                     isShopper={isShopper}
                     loading={actionLoading}
+                    shippingVerificationActive={isShopper && request.status === 'purchased' && !request.shipping_verified}
                     onCancel={handleCancelRequest}
                     onShowPayment={() => setShowPayment(true)}
                     onUpdateStatus={handleUpdateStatus}
