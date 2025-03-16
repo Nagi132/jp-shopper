@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase/client';
  * - Reports actual shipping costs
  * - Handles additional cost approval process
  */
-export default function ShippingVerification({ 
+export default function ShippingVerification({
   requestId,
   estimatedShippingCost = 0,
   onSubmitSuccess,
@@ -29,69 +29,72 @@ export default function ShippingVerification({
   const [success, setSuccess] = useState(false);
   const [receiptImages, setReceiptImages] = useState([]);
   const [imagePreview, setImagePreview] = useState([]);
-  
+
   const fileInputRef = useRef(null);
-  
+
   const costDifference = actualCost - estimatedShippingCost;
   const needsAdditionalPayment = costDifference > 0;
-  
+
   // Handle file selection for image upload
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
-    
+
     setUploading(true);
     setError(null);
-    
+
     try {
-      const newPreviews = [];
-      const newReceiptImages = [];
-      
       for (const file of files) {
-        // Check file size (5MB limit)
-        if (file.size > 5 * 1024 * 1024) {
+        // Check file size
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
           setError('File size exceeds 5MB limit');
           continue;
         }
-        
-        // Create preview URL
-        const previewUrl = URL.createObjectURL(file);
-        newPreviews.push(previewUrl);
-        
+
         // Create a unique file name
         const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
         const filePath = `shipping-receipts/${requestId}/${fileName}`;
-        
-        // Upload the file to Supabase storage
+
+        // Create preview URL first
+        const previewUrl = URL.createObjectURL(file);
+        setImagePreview(prev => [...prev, previewUrl]);
+
+        // Upload the file
         const { data, error } = await supabase.storage
           .from('shipping-receipts')
-          .upload(filePath, file);
-          
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+          });
+
         if (error) {
-          console.error('Upload error:', error);
-          setError('Failed to upload image. Please try again.');
+          // Check for specific error types
+          if (error.message.includes('storage') || error.message.includes('bucket')) {
+            setError('Storage configuration error. Please contact support.');
+          } else if (error.message.includes('permission')) {
+            setError('Permission denied for file upload. Please contact support.');
+          } else {
+            setError(`Failed to upload image: ${error.message}`);
+          }
+
+          // Remove the preview since upload failed
+          setImagePreview(prev => prev.filter(url => url !== previewUrl));
           continue;
         }
-        
+
         // Get the public URL
         const { data: { publicUrl } } = supabase.storage
           .from('shipping-receipts')
           .getPublicUrl(filePath);
-          
-        newReceiptImages.push({
+
+        setReceiptImages(prev => [...prev, {
           url: publicUrl,
           path: filePath,
           name: fileName
-        });
-      }
-      
-      if (newReceiptImages.length > 0) {
-        setReceiptImages(prev => [...prev, ...newReceiptImages]);
-        setImagePreview(prev => [...prev, ...newPreviews]);
+        }]);
       }
     } catch (err) {
-      console.error('Error uploading receipt:', err);
-      setError('Failed to upload receipt. Please try again.');
+      setError(`Failed to upload receipt: ${err.message}`);
     } finally {
       setUploading(false);
       // Reset file input
@@ -100,30 +103,30 @@ export default function ShippingVerification({
       }
     }
   };
-  
+
   // Remove an image from the receipt list
   const removeImage = (index) => {
     setReceiptImages(prev => prev.filter((_, i) => i !== index));
     setImagePreview(prev => prev.filter((_, i) => i !== index));
   };
-  
+
   // Submit the shipping verification
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (receiptImages.length === 0) {
       setError('Please upload at least one receipt image');
       return;
     }
-    
+
     setSubmitting(true);
     setError(null);
-    
+
     try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
-      
+
       // Create a shipping verification record
       const { data, error } = await supabase
         .from('shipping_verifications')
@@ -140,31 +143,65 @@ export default function ShippingVerification({
         })
         .select()
         .single();
-        
+
       if (error) throw error;
-      
-      // Update the request status if needed
-      if (!needsAdditionalPayment) {
-        const { error: requestError } = await supabase
-          .from('requests')
-          .update({ 
-            shipping_verified: true,
-            shipping_cost: actualCost
-          })
-          .eq('id', requestId);
-          
-        if (requestError) {
-          console.error('Error updating request:', requestError);
+
+      // Update the request status based on verification result
+      let newStatus = '';
+
+      if (needsAdditionalPayment) {
+        // If additional payment needed, keep as 'paid' but update shipping_verified flag
+        newStatus = 'paid';
+      } else {
+        // If the current status is 'paid', change to 'purchased'
+        // If the current status is 'purchased', change to 'shipped'
+        // This prevents skipping steps
+        try {
+          // First check current status
+          const { data: requestData } = await supabase
+            .from('requests')
+            .select('status')
+            .eq('id', requestId)
+            .single();
+
+          if (requestData.status === 'paid') {
+            newStatus = 'purchased';
+          } else if (requestData.status === 'purchased') {
+            newStatus = 'shipped';
+          } else {
+            // If somehow in another state, use 'shipped'
+            newStatus = 'shipped';
+          }
+        } catch (statusErr) {
+          // Default to shipped if we can't check
+          newStatus = 'shipped';
         }
       }
-      
+
+      // Update the request with verified shipping info and new status
+      const { error: requestError } = await supabase
+        .from('requests')
+        .update({
+          shipping_verified: !needsAdditionalPayment,
+          shipping_cost: actualCost,
+          status: newStatus
+        })
+        .eq('id', requestId);
+
+      if (requestError) {
+        throw new Error(`Failed to update request status: ${requestError.message}`);
+      }
+
       setSuccess(true);
       if (onSubmitSuccess) {
         onSubmitSuccess(data);
       }
-      
+
+      // Show success message then reload page to reflect changes
+      alert(`Shipping verification submitted successfully! Status updated to: ${newStatus}`);
+      window.location.reload();
+
     } catch (err) {
-      console.error('Error submitting shipping verification:', err);
       setError(err.message);
     } finally {
       setSubmitting(false);
@@ -181,14 +218,14 @@ export default function ShippingVerification({
             </div>
             <h3 className="text-xl font-semibold mb-2">Shipping Verification Submitted</h3>
             <p className="text-gray-600 text-center mb-4">
-              {needsAdditionalPayment 
+              {needsAdditionalPayment
                 ? 'Your request for additional shipping payment is pending customer approval.'
                 : 'Shipping cost has been verified successfully.'}
             </p>
             {needsAdditionalPayment && (
               <div className="w-full p-4 bg-blue-50 rounded-md text-blue-800 text-sm">
                 <p>
-                  The customer will be notified to approve the additional shipping cost of 
+                  The customer will be notified to approve the additional shipping cost of
                   <span className="font-semibold"> ¥{costDifference.toLocaleString()}</span>.
                 </p>
               </div>
@@ -236,7 +273,7 @@ export default function ShippingVerification({
                 />
               </div>
             </div>
-            
+
             {/* Cost Difference Alert */}
             {costDifference !== 0 && (
               <div className={`p-4 rounded-md ${needsAdditionalPayment ? 'bg-yellow-50 text-yellow-800' : 'bg-green-50 text-green-800'}`}>
@@ -246,7 +283,7 @@ export default function ShippingVerification({
                     <div>
                       <p className="font-medium">Additional Payment Required</p>
                       <p className="text-sm">
-                        The actual shipping cost is <span className="font-semibold">¥{costDifference.toLocaleString()}</span> more than the 
+                        The actual shipping cost is <span className="font-semibold">¥{costDifference.toLocaleString()}</span> more than the
                         estimated cost. The customer will need to approve this additional amount.
                       </p>
                     </div>
@@ -257,7 +294,7 @@ export default function ShippingVerification({
                     <div>
                       <p className="font-medium">Shipping Cost Savings</p>
                       <p className="text-sm">
-                        The actual shipping cost is <span className="font-semibold">¥{Math.abs(costDifference).toLocaleString()}</span> less than 
+                        The actual shipping cost is <span className="font-semibold">¥{Math.abs(costDifference).toLocaleString()}</span> less than
                         the estimated cost. The difference will be refunded to the customer.
                       </p>
                     </div>
@@ -265,7 +302,7 @@ export default function ShippingVerification({
                 )}
               </div>
             )}
-            
+
             {/* Notes */}
             <div className="space-y-2">
               <Label htmlFor="notes">Notes (Optional)</Label>
@@ -277,13 +314,13 @@ export default function ShippingVerification({
                 rows={3}
               />
             </div>
-            
+
             {/* Receipt Upload */}
             <div className="space-y-2">
               <Label className="block mb-2">Upload Shipping Receipt</Label>
-              
+
               <div className="border-2 border-dashed rounded-md p-6 flex flex-col items-center cursor-pointer hover:bg-gray-50 transition-colors"
-                   onClick={() => fileInputRef.current?.click()}>
+                onClick={() => fileInputRef.current?.click()}>
                 <ImageIcon className="h-10 w-10 text-gray-400 mb-2" />
                 <p className="text-sm text-gray-600 mb-1">Click to upload shipping receipt</p>
                 <p className="text-xs text-gray-500">PNG, JPG or PDF (Max 5MB)</p>
@@ -297,7 +334,7 @@ export default function ShippingVerification({
                   disabled={uploading}
                 />
               </div>
-              
+
               {/* Upload progress indicator */}
               {uploading && (
                 <div className="flex items-center justify-center py-2">
@@ -305,7 +342,7 @@ export default function ShippingVerification({
                   <span className="text-sm text-gray-600">Uploading...</span>
                 </div>
               )}
-              
+
               {/* Image previews */}
               {imagePreview.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
@@ -328,7 +365,7 @@ export default function ShippingVerification({
                 </div>
               )}
             </div>
-            
+
             {/* Error message */}
             {error && (
               <div className="p-3 bg-red-50 text-red-600 rounded-md flex items-start">
@@ -337,7 +374,7 @@ export default function ShippingVerification({
               </div>
             )}
           </div>
-          
+
           <div className="mt-6 flex justify-end">
             <Button type="submit" disabled={submitting || uploading}>
               {submitting ? (

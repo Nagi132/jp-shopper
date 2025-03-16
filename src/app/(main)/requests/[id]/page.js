@@ -16,6 +16,7 @@ import ProposalsList from '@/components/requests/ProposalsList';
 import ProposalForm from '@/components/requests/ProposalForm';
 import MessagingSection from '@/components/messaging/MessagingSection';
 import CheckoutForm from '@/components/payments/CheckoutForm';
+import RequestDebugPanel from '@/components/debug/RequestDebugPanel';
 
 // Import shipping components
 import ShippingVerification from '@/components/shipping/ShippingVerification';
@@ -43,136 +44,136 @@ export default function RequestDetailPage({ params }) {
     const [loadingProposals, setLoadingProposals] = useState(false);
     const [shopperName, setShopperName] = useState(null);
     const [customerName, setCustomerName] = useState(null);
-    
+
     // Shipping-related state
     const [shippingVerification, setShippingVerification] = useState(null);
     const [loadingShippingVerification, setLoadingShippingVerification] = useState(false);
-    
+
     // Fetch the request data and shipping verification
     useEffect(() => {
         const fetchRequestData = async () => {
             try {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) {
-                router.push('/login');
-                return;
-              }
-          
-              setUser(user);
-              console.log('Current user ID:', user.id);
-          
-              // Fetch the request
-              const { data, error } = await supabase
-                .from('requests')
-                .select('*')
-                .eq('id', requestId)
-                .single();
-          
-              if (error) throw error;
-              if (!data) throw new Error('Request not found');
-          
-              console.log('REQUEST DATA:', data);
-              setRequest(data);
-          
-              // Determine if the current user is the customer
-              const userIsCustomer = user.id === data.customer_id;
-              setIsCustomer(userIsCustomer);
-              console.log('User is customer?', userIsCustomer);
-          
-              // If the request has a shopper assigned, determine if current user is the shopper
-              if (data.shopper_id) {
-                console.log('Request has shopper_id:', data.shopper_id);
-                
-                // Get the shopper profile to find the user_id
-                const { data: shopperProfile, error: shopperProfileError } = await supabase
-                  .from('shopper_profiles')
-                  .select('user_id')
-                  .eq('id', data.shopper_id)
-                  .single();
-          
-                console.log('Shopper profile lookup result:', shopperProfile, shopperProfileError);
-                
-                if (!shopperProfileError && shopperProfile) {
-                  // Set isShopper based on direct user_id comparison
-                  const userIsShopper = user.id === shopperProfile.user_id;
-                  setIsShopper(userIsShopper);
-                  console.log('User is shopper:', userIsShopper, 'Shopper user_id:', shopperProfile.user_id);
-                  
-                  // Get the shopper's name using a simpler query
-                  try {
-                    // Create a function in Supabase that returns a profile by user_id
-                    // You can do this via the SQL editor in Supabase
-                    const { data: shopperUserProfile, error } = await supabase
-                      .rpc('get_profile_by_user_id', { 
-                        p_user_id: shopperProfile.user_id 
-                      });
-                  
-                    if (error) throw error;
-                    
-                    if (shopperUserProfile) {
-                      setShopperName(shopperUserProfile.full_name || shopperUserProfile.username);
-                      console.log('Shopper name set to:', shopperUserProfile.full_name || shopperUserProfile.username);
-                    } else {
-                      setShopperName('Shopper');
-                    }
-                  } catch (profileError) {
-                    console.error('Error fetching shopper profile name:', profileError);
-                    setShopperName('Shopper');
-                  }
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    router.push('/login');
+                    return;
                 }
-              } else {
-                console.log('Request has no shopper assigned yet');
-                setIsShopper(false);
-              }
-          
-              // If current user is shopper, get customer name for messaging
-              if (data.customer_id && !userIsCustomer) {
-                try {
-                  const { data: customerProfile } = await supabase
-                    .from('profiles')
-                    .select('user_id, username, full_name')
-                    .eq('user_id', data.customer_id)
-                    .single();
-          
-                  if (customerProfile) {
-                    setCustomerName(customerProfile.full_name || customerProfile.username);
-                    console.log('Customer name set to:', customerProfile.full_name || customerProfile.username);
-                  }
-                } catch (profileError) {
-                  console.error('Error fetching customer profile name:', profileError);
-                  setCustomerName('Customer');
-                }
-              }
-              
-              // Fetch shipping verification data if request is in appropriate status
-              if (['paid', 'purchased', 'shipped', 'completed'].includes(data.status)) {
-                setLoadingShippingVerification(true);
-                try {
-                  const { data: verificationData, error: verificationError } = await supabase
-                    .from('shipping_verifications')
+
+                setUser(user);
+                console.log('Current user ID:', user.id);
+
+                // Fetch the request
+                const { data, error } = await supabase
+                    .from('requests')
                     .select('*')
-                    .eq('request_id', requestId)
-                    .order('created_at', { ascending: false })
-                    .limit(1);
-                    
-                  if (!verificationError && verificationData && verificationData.length > 0) {
-                    console.log('Found shipping verification:', verificationData[0]);
-                    setShippingVerification(verificationData[0]);
-                  }
-                } catch (verificationErr) {
-                  console.error('Error fetching shipping verification:', verificationErr);
-                } finally {
-                  setLoadingShippingVerification(false);
+                    .eq('id', requestId)
+                    .single();
+
+                if (error) throw error;
+                if (!data) throw new Error('Request not found');
+
+                console.log('REQUEST DATA:', data);
+                setRequest(data);
+
+                // Determine if the current user is the customer
+                const userIsCustomer = user.id === data.customer_id;
+                setIsCustomer(userIsCustomer);
+                console.log('User is customer?', userIsCustomer);
+
+                // If the request has a shopper assigned, determine if current user is the shopper
+                if (data.shopper_id) {
+                    console.log('Request has shopper_id:', data.shopper_id);
+
+                    // Get the shopper profile to find the user_id
+                    const { data: shopperProfile, error: shopperProfileError } = await supabase
+                        .from('shopper_profiles')
+                        .select('user_id')
+                        .eq('id', data.shopper_id)
+                        .single();
+
+                    console.log('Shopper profile lookup result:', shopperProfile, shopperProfileError);
+
+                    if (!shopperProfileError && shopperProfile) {
+                        // Set isShopper based on direct user_id comparison
+                        const userIsShopper = user.id === shopperProfile.user_id;
+                        setIsShopper(userIsShopper);
+                        console.log('User is shopper:', userIsShopper, 'Shopper user_id:', shopperProfile.user_id);
+
+                        // Get the shopper's name using a simpler query
+                        try {
+                            // Create a function in Supabase that returns a profile by user_id
+                            // You can do this via the SQL editor in Supabase
+                            const { data: shopperUserProfile, error } = await supabase
+                                .rpc('get_profile_by_user_id', {
+                                    p_user_id: shopperProfile.user_id
+                                });
+
+                            if (error) throw error;
+
+                            if (shopperUserProfile) {
+                                setShopperName(shopperUserProfile.full_name || shopperUserProfile.username);
+                                console.log('Shopper name set to:', shopperUserProfile.full_name || shopperUserProfile.username);
+                            } else {
+                                setShopperName('Shopper');
+                            }
+                        } catch (profileError) {
+                            console.error('Error fetching shopper profile name:', profileError);
+                            setShopperName('Shopper');
+                        }
+                    }
+                } else {
+                    console.log('Request has no shopper assigned yet');
+                    setIsShopper(false);
                 }
-              }
-          
+
+                // If current user is shopper, get customer name for messaging
+                if (data.customer_id && !userIsCustomer) {
+                    try {
+                        const { data: customerProfile } = await supabase
+                            .from('profiles')
+                            .select('user_id, username, full_name')
+                            .eq('user_id', data.customer_id)
+                            .single();
+
+                        if (customerProfile) {
+                            setCustomerName(customerProfile.full_name || customerProfile.username);
+                            console.log('Customer name set to:', customerProfile.full_name || customerProfile.username);
+                        }
+                    } catch (profileError) {
+                        console.error('Error fetching customer profile name:', profileError);
+                        setCustomerName('Customer');
+                    }
+                }
+
+                // Fetch shipping verification data if request is in appropriate status
+                if (['paid', 'purchased', 'shipped', 'completed'].includes(data.status)) {
+                    setLoadingShippingVerification(true);
+                    try {
+                        const { data: verificationData, error: verificationError } = await supabase
+                            .from('shipping_verifications')
+                            .select('*')
+                            .eq('request_id', requestId)
+                            .order('created_at', { ascending: false })
+                            .limit(1);
+
+                        if (!verificationError && verificationData && verificationData.length > 0) {
+                            console.log('Found shipping verification:', verificationData[0]);
+                            setShippingVerification(verificationData[0]);
+                        }
+                    } catch (verificationErr) {
+                        console.error('Error fetching shipping verification:', verificationErr);
+                    } finally {
+                        setLoadingShippingVerification(false);
+                    }
+                }
+
             } catch (err) {
-              console.error('Error fetching request:', err);
-              setError(err.message);
+                console.error('Error fetching request:', err);
+                setError(err.message);
             } finally {
-              setLoading(false);
+                setLoading(false);
             }
-          };
+        };
 
         fetchRequestData();
     }, [requestId, router]);
@@ -417,27 +418,78 @@ export default function RequestDetailPage({ params }) {
     };
 
     // Handle updating the request status
+    // Improve the handleUpdateStatus function
+
+    // Update the handleUpdateStatus function in the page.js file
+
     const handleUpdateStatus = async (newStatus) => {
         if (!confirm(`Are you sure you want to mark this request as ${newStatus}?`)) return;
 
         setActionLoading(true);
         try {
+            console.log(`Attempting to update request status from ${request?.status} to ${newStatus}`);
+
+            // Create update data object
+            const updateData = {
+                status: newStatus,
+                updated_at: new Date().toISOString()
+            };
+
+            // Special handling for different status transitions
+            if (newStatus === 'purchased' && request?.status === 'paid') {
+                console.log('Transitioning from paid to purchased');
+                // No special fields needed
+            }
+            else if (newStatus === 'shipped' && request?.status === 'purchased') {
+                console.log('Transitioning from purchased to shipped');
+
+                // If there's no shipping verification yet, validate
+                if (!shippingVerification) {
+                    // Check if there's a shipping deposit requirement
+                    if (request?.shipping_deposit > 0) {
+                        if (!confirm('No shipping verification has been submitted. Are you sure you want to proceed?')) {
+                            setActionLoading(false);
+                            return;
+                        }
+                    }
+                }
+                // If verification exists, apply its values
+                else {
+                    updateData.shipping_verified = true;
+                    updateData.shipping_cost = shippingVerification.actual_cost;
+                }
+            }
+
+            console.log('Sending update to database:', updateData);
+
+            // Execute the update
             const { error } = await supabase
                 .from('requests')
-                .update({ status: newStatus })
+                .update(updateData)
                 .eq('id', requestId);
 
-            if (error) throw error;
+            if (error) {
+                console.error(`Error updating request status to ${newStatus}:`, error);
+                throw new Error(`Failed to update status: ${error.message}`);
+            }
+
+            console.log('Request status updated successfully');
 
             // Update local state
             setRequest(prev => ({
                 ...prev,
-                status: newStatus
+                ...updateData
             }));
+
+            // Show success message
+            alert(`Request has been marked as ${newStatus}`);
+
+            // Force reload to ensure we see updated state
+            window.location.reload();
 
         } catch (err) {
             console.error(`Error updating request status to ${newStatus}:`, err);
-            alert('Failed to update request status. Please try again.');
+            alert(`Failed to update request status: ${err.message}`);
         } finally {
             setActionLoading(false);
         }
@@ -446,27 +498,34 @@ export default function RequestDetailPage({ params }) {
     // Handle shipping verification submission
     const handleShippingVerificationSubmit = async (data) => {
         setShippingVerification(data);
-        
+
         // If no additional approval needed, update to shipped
         if (!data.needs_approval) {
-            // Update request as verified and ready for shipping
             try {
+                console.log("Updating request status to shipped");
+
+                // First update request as verified with shipping cost
                 const { error: updateError } = await supabase
                     .from('requests')
-                    .update({ 
+                    .update({
                         shipping_verified: true,
-                        shipping_cost: data.actual_cost
+                        shipping_cost: data.actual_cost,
+                        status: 'shipped',  // Explicitly update status
+                        updated_at: new Date().toISOString()
                     })
                     .eq('id', requestId);
-                    
+
                 if (updateError) {
-                    console.error('Error updating request with shipping verification:', updateError);
+                    console.error('Error updating request status:', updateError);
+                    alert('There was an issue updating the request status. Please try again.');
                 } else {
-                    // If all good, update the status to shipped
-                    handleUpdateStatus('shipped');
+                    console.log("Request successfully updated to shipped status");
+                    // Force reload to show updated status
+                    window.location.reload();
                 }
             } catch (err) {
                 console.error('Error updating shipping verification:', err);
+                alert('Error updating request status. Please contact support.');
             }
         }
     };
@@ -475,40 +534,40 @@ export default function RequestDetailPage({ params }) {
     const handleShippingApproval = async () => {
         try {
             setActionLoading(true);
-            
+
             // Update verification status
             const { error: verificationError } = await supabase
                 .from('shipping_verifications')
-                .update({ 
+                .update({
                     status: 'approved',
                     approval_date: new Date().toISOString()
                 })
                 .eq('id', shippingVerification.id);
-                
+
             if (verificationError) throw verificationError;
-            
+
             // Update request
             const { error: requestError } = await supabase
                 .from('requests')
-                .update({ 
+                .update({
                     shipping_verified: true,
                     shipping_cost: shippingVerification.actual_cost
                 })
                 .eq('id', requestId);
-                
+
             if (requestError) throw requestError;
-            
+
             // Update local state
-            setShippingVerification(prev => ({...prev, status: 'approved'}));
+            setShippingVerification(prev => ({ ...prev, status: 'approved' }));
             setRequest(prev => ({
-                ...prev, 
+                ...prev,
                 shipping_verified: true,
                 shipping_cost: shippingVerification.actual_cost
             }));
-            
+
             // Update to shipped status
             handleUpdateStatus('shipped');
-            
+
         } catch (err) {
             console.error('Error approving shipping:', err);
             alert('Failed to approve shipping. Please try again.');
@@ -521,23 +580,23 @@ export default function RequestDetailPage({ params }) {
     const handleShippingRejection = async () => {
         try {
             setActionLoading(true);
-            
+
             // Update verification status
             const { error: verificationError } = await supabase
                 .from('shipping_verifications')
-                .update({ 
+                .update({
                     status: 'rejected',
                     rejection_date: new Date().toISOString()
                 })
                 .eq('id', shippingVerification.id);
-                
+
             if (verificationError) throw verificationError;
-            
+
             // Update local state
-            setShippingVerification(prev => ({...prev, status: 'rejected'}));
-            
+            setShippingVerification(prev => ({ ...prev, status: 'rejected' }));
+
             alert('You have rejected the additional shipping cost. Please contact the shopper to discuss alternatives.');
-            
+
         } catch (err) {
             console.error('Error rejecting shipping:', err);
             alert('Failed to reject shipping. Please try again.');
@@ -634,7 +693,7 @@ export default function RequestDetailPage({ params }) {
                     className="mb-6"
                 />
             )}
-            
+
             {/* Shipping Verification Form - only for shoppers after purchase */}
             {isShopper && request.status === 'purchased' && !request.shipping_verified && (
                 <ShippingVerification
@@ -644,20 +703,20 @@ export default function RequestDetailPage({ params }) {
                     className="mb-6"
                 />
             )}
-            
+
             {/* Shipping Approval Request - for customers when additional payment is needed */}
-            {isCustomer && 
-             shippingVerification && 
-             shippingVerification.needs_approval && 
-             shippingVerification.status === 'pending_approval' && (
-                <ShippingApprovalRequest
-                    verification={shippingVerification}
-                    requestData={request}
-                    onApprove={handleShippingApproval}
-                    onReject={handleShippingRejection}
-                    className="mb-6"
-                />
-            )}
+            {isCustomer &&
+                shippingVerification &&
+                shippingVerification.needs_approval &&
+                shippingVerification.status === 'pending_approval' && (
+                    <ShippingApprovalRequest
+                        verification={shippingVerification}
+                        requestData={request}
+                        onApprove={handleShippingApproval}
+                        onReject={handleShippingRejection}
+                        className="mb-6"
+                    />
+                )}
 
             {/* Messaging section - only visible when request is assigned or further along */}
             {(isCustomer || isShopper) && request.status !== 'open' && request.status !== 'cancelled' && (
@@ -667,6 +726,13 @@ export default function RequestDetailPage({ params }) {
                     requestStatus={request.status}
                     otherPersonName={isCustomer ? shopperName : customerName}
                     isCustomer={isCustomer}
+                />
+            )}
+            {/* Debug panel - only visible in development */}
+            {process.env.NODE_ENV !== 'production' && (
+                <RequestDebugPanel
+                    requestId={requestId}
+                    currentStatus={request?.status}
                 />
             )}
         </div>
