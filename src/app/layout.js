@@ -1,4 +1,5 @@
-import './globals.css'
+import './globals.css';
+import { futuraCyrillicLight, futuraCyrillicMedium, futuraCyrillicBold } from '@/lib/fonts';
 
 export const metadata = {
   title: 'Japan Personal Shopper Marketplace',
@@ -7,8 +8,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-gray-50">
+    <html lang="en" className={`${futuraCyrillicMedium.variable} ${futuraCyrillicLight.variable} ${futuraCyrillicBold.variable}`}>
+      <body className="min-h-screen bg-gray-50 font-futura-medium">
         {children}
       </body>
     </html>
