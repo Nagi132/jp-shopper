@@ -1,0 +1,326 @@
+/* Windows 2000 Style CSS */
+
+/* Windows cursor styles */
+.cursor-win-default {
+    cursor: url('/cursors/arrow.png'), default;
+  }
+  
+  .cursor-win-pointer {
+    cursor: url('/cursors/hand.png'), pointer;
+  }
+  
+  .cursor-win-text {
+    cursor: url('/cursors/text.png'), text;
+  }
+  
+  .cursor-win-wait {
+    cursor: url('/cursors/wait.gif'), wait;
+  }
+  
+  .cursor-win-move {
+    cursor: url('/cursors/move.png'), move;
+  }
+  
+  .cursor-win-resize-nw {
+    cursor: url('/cursors/nw-resize.png'), nw-resize;
+  }
+  
+  .cursor-win-resize-ne {
+    cursor: url('/cursors/ne-resize.png'), ne-resize;
+  }
+  
+  .cursor-win-resize-sw {
+    cursor: url('/cursors/sw-resize.png'), sw-resize;
+  }
+  
+  .cursor-win-resize-se {
+    cursor: url('/cursors/se-resize.png'), se-resize;
+  }
+  
+  .cursor-win-resize-n {
+    cursor: url('/cursors/n-resize.png'), n-resize;
+  }
+  
+  .cursor-win-resize-s {
+    cursor: url('/cursors/s-resize.png'), s-resize;
+  }
+  
+  .cursor-win-resize-e {
+    cursor: url('/cursors/e-resize.png'), e-resize;
+  }
+  
+  .cursor-win-resize-w {
+    cursor: url('/cursors/w-resize.png'), w-resize;
+  }
+  
+  /* Windows 2000 scrollbar styles */
+  .win2k-scrollbar::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-track {
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+    box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-button {
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+    box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+    width: 16px;
+    height: 16px;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-button:vertical:start:decrement {
+    background-image: url('/scrollbar/up.svg');
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-button:vertical:end:increment {
+    background-image: url('/scrollbar/down.svg');
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-button:horizontal:start:decrement {
+    background-image: url('/scrollbar/left.svg');
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-button:horizontal:end:increment {
+    background-image: url('/scrollbar/right.svg');
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+  
+  /* Window styles */
+  .win2k-window {
+    border: 2px solid #d4d0c8;
+    background-color: #d4d0c8;
+    box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.3);
+    border-radius: 0;
+    position: absolute;
+    overflow: hidden;
+  }
+  
+  .win2k-window-active {
+    z-index: 999;
+  }
+  
+  .win2k-window-inactive {
+    z-index: 998;
+  }
+  
+  .win2k-titlebar {
+    height: 22px;
+    background: linear-gradient(to right, #000080, #1084d0);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+    font-weight: bold;
+    user-select: none;
+  }
+  
+  .win2k-titlebar-inactive {
+    background: linear-gradient(to right, #808080, #b5b5b5);
+  }
+  
+  .win2k-window-button {
+    width: 16px;
+    height: 14px;
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+    margin-left: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .win2k-window-button:hover {
+    background-color: #e5e5e5;
+  }
+  
+  .win2k-window-button:active {
+    background-color: #ccc;
+    box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
+  }
+  
+  .win2k-close:hover {
+    background-color: #f55;
+    color: white;
+  }
+  
+  /* Desktop styles */
+  .win2k-desktop {
+    background-image: url('/wallpapers/win2k.jpg');
+    background-size: cover;
+    background-position: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 40px;
+    overflow: hidden;
+  }
+  
+  /* Windows 2000 Taskbar */
+  .win2k-taskbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 40px;
+    background-color: #d4d0c8;
+    border-top: 1px solid #ffffff;
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    z-index: 1000;
+  }
+  
+  .win2k-start-button {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 8px;
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+    margin-right: 8px;
+    font-weight: bold;
+    box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+  }
+  
+  .win2k-start-button.active {
+    background-color: #c0c0c0;
+    box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  
+  .win2k-start-button .logo {
+    margin-right: 4px;
+    width: 20px;
+    height: 20px;
+  }
+  
+  .win2k-taskbar-divider {
+    width: 1px;
+    height: 80%;
+    background-color: #808080;
+    margin: 0 4px;
+  }
+  
+  .win2k-taskbar-window {
+    height: 32px;
+    min-width: 100px;
+    padding: 0 8px;
+    margin: 0 2px;
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+    box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+    display: flex;
+    align-items: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  
+  .win2k-taskbar-window.active {
+    background-color: #c0c0c0;
+  }
+  
+  .win2k-taskbar-window-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+  }
+  
+  /* Windows 2000 Start Menu */
+  .win2k-start-menu {
+    position: absolute;
+    left: 0;
+    bottom: 40px;
+    width: 300px;
+    background-color: #d4d0c8;
+    border: 2px solid #000080;
+    box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.3);
+    z-index: 2000;
+  }
+  
+  .win2k-start-menu-header {
+    height: 60px;
+    background: linear-gradient(to right, #000080, #1084d0);
+    color: white;
+    display: flex;
+    align-items: center;
+    padding-left: 20px;
+    font-weight: bold;
+    font-size: 18px;
+  }
+  
+  .win2k-start-menu-items {
+    padding: 8px 0;
+  }
+  
+  .win2k-start-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 16px;
+    height: 32px;
+  }
+  
+  .win2k-start-menu-item:hover {
+    background-color: #000080;
+    color: white;
+  }
+  
+  .win2k-start-menu-item-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+  }
+  
+  .win2k-start-menu-separator {
+    height: 1px;
+    background-color: #808080;
+    margin: 4px 0;
+  }
+  
+  /* Desktop Icons */
+  .win2k-desktop-icon {
+    position: absolute;
+    width: 75px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+  }
+  
+  .win2k-desktop-icon-image {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 4px;
+  }
+  
+  .win2k-desktop-icon-label {
+    background-color: transparent;
+    color: white;
+    text-align: center;
+    font-size: 12px;
+    padding: 2px 4px;
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.8);
+  }
+  
+  .win2k-desktop-icon.selected .win2k-desktop-icon-label {
+    background-color: #000080;
+    color: white;
+  }

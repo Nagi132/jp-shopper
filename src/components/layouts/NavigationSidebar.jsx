@@ -19,9 +19,39 @@ import {
 
 /**
  * NavigationSidebar - Left sidebar navigation for desktop, bottom bar for mobile
+ * Incorporates theme colors
+ * 
+ * @param {Object} props
+ * @param {Object} props.theme - Theme properties (borderColor, bgColor)
  */
-const NavigationSidebar = () => {
+const NavigationSidebar = ({ theme = {} }) => {
   const pathname = usePathname();
+
+  // Get theme colors or use defaults
+  const borderColor = theme?.borderColor || '69EFD7';
+  const bgColor = theme?.bgColor || 'FED1EB';
+  const pattern = theme?.pattern || 'none';
+  
+  // Function to determine text color (black or white) based on background
+  const getContrastText = (hexColor) => {
+    // Convert hex to RGB
+    const r = parseInt(hexColor.substr(0, 2), 16);
+    const g = parseInt(hexColor.substr(2, 2), 16);
+    const b = parseInt(hexColor.substr(4, 2), 16);
+    
+    // Calculate luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    // Return black for light colors, white for dark
+    return luminance > 0.5 ? '000000' : 'FFFFFF';
+  };
+  
+  // Get text color based on background
+  const textColor = theme?.textColor || getContrastText(bgColor);
+  
+  // Get active item color
+  const activeItemBgColor = `#${borderColor}`;
+  const activeItemTextColor = `#${getContrastText(borderColor)}`;
 
   const navItems = [
     { 
@@ -70,39 +100,86 @@ const NavigationSidebar = () => {
   return (
     <>
       {/* Desktop Sidebar - Fixed on the left */}
-      <aside className="hidden md:flex flex-col w-60 bg-[#C0C0C0] border-t border-l border-white border-r border-b border-gray-600 p-3 fixed left-0 top-0 h-full">
+      <aside 
+        className="hidden md:flex flex-col w-60 p-3 fixed left-0 top-0 h-full border-r border-t border-b border-l"
+        style={{ 
+          backgroundColor: `#${bgColor}`,
+          borderColor: `#${borderColor}`,
+          color: `#${textColor}`,
+          backgroundImage: pattern !== 'none' ? pattern : undefined,
+          boxShadow: '2px 0 8px rgba(0,0,0,0.1)'
+        }}
+      >
         <div className="flex items-center px-2 mb-6">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-[#C999F8] to-[#D8B5FF] text-transparent bg-clip-text">
+          <h1 
+            className="text-xl font-bold"
+            style={{ 
+              background: `linear-gradient(135deg, #${borderColor}, #${bgColor})`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}
+          >
             JapanShopper.exe
           </h1>
         </div>
 
         <nav className="flex-1">
           <ul className="space-y-1">
-            {navItems.map((item) => (
-              <li key={item.name}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md border border-transparent",
-                    pathname === item.href
-                      ? "border-t-gray-600 border-l-gray-600 border-r-white border-b-white bg-gray-300"
-                      : "hover:bg-gray-200",
-                    item.highlight && "bg-gradient-to-r from-[#C999F8] to-[#D8B5FF] hover:opacity-90"
-                  )}
-                >
-                  {item.icon}
-                  <span className="ml-3">{item.name}</span>
-                </Link>
-              </li>
-            ))}
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <li key={item.name}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center px-3 py-2 text-sm font-medium rounded-md border-2 transition-all",
+                      isActive
+                        ? "shadow-inner transform scale-[0.98]"
+                        : "hover:bg-opacity-20 shadow-sm",
+                    )}
+                    style={{
+                      backgroundColor: isActive 
+                        ? activeItemBgColor 
+                        : item.highlight 
+                          ? `#${borderColor}80` 
+                          : 'transparent',
+                      color: isActive 
+                        ? activeItemTextColor 
+                        : item.highlight 
+                          ? activeItemTextColor 
+                          : `#${textColor}`,
+                      borderColor: isActive || item.highlight 
+                        ? `#${borderColor}` 
+                        : 'transparent',
+                      boxShadow: isActive 
+                        ? `inset 1px 1px 3px rgba(0,0,0,0.1)` 
+                        : `1px 1px 2px rgba(0,0,0,0.05)`,
+                    }}
+                  >
+                    <span 
+                      className={`${isActive ? 'opacity-100' : 'opacity-70'}`}
+                      style={{ 
+                        filter: isActive ? 'drop-shadow(0 0 2px rgba(0,0,0,0.1))' : 'none'
+                      }}
+                    >
+                      {item.icon}
+                    </span>
+                    <span className="ml-3">{item.name}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
         <div className="mt-6">
           <Link
             href="/settings"
-            className="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-200"
+            className="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-opacity-10"
+            style={{
+              color: `#${textColor}90`,
+              hoverBackgroundColor: `#${borderColor}20`,
+            }}
           >
             <Settings className="h-5 w-5" />
             <span className="ml-3">Settings</span>
@@ -111,27 +188,51 @@ const NavigationSidebar = () => {
       </aside>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#C0C0C0] border-t-2 border-gray-600 z-50">
+      <nav 
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t"
+        style={{ 
+          backgroundColor: `#${bgColor}`,
+          borderColor: `#${borderColor}`,
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
+        }}
+      >
         <div className="grid grid-cols-5 h-14">
-          {navItems.slice(0, 5).map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex flex-col items-center justify-center",
-                pathname === item.href ? "text-[#C999F8]" : "text-gray-700"
-              )}
-            >
-              {item.highlight ? (
-                <div className="bg-gradient-to-r from-[#C999F8] to-[#D8B5FF] w-10 h-10 rounded-full flex items-center justify-center">
-                  {item.icon}
-                </div>
-              ) : (
-                item.icon
-              )}
-              <span className="text-xs mt-1">{item.name}</span>
-            </Link>
-          ))}
+          {navItems.slice(0, 5).map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "flex flex-col items-center justify-center",
+                )}
+                style={{ 
+                  color: isActive 
+                    ? `#${borderColor}` 
+                    : item.highlight 
+                      ? activeItemTextColor 
+                      : `#${textColor}80`,
+                }}
+              >
+                {item.highlight ? (
+                  <div 
+                    className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ 
+                      background: `linear-gradient(135deg, #${borderColor}, #${bgColor})`,
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                    }}
+                  >
+                    {item.icon}
+                  </div>
+                ) : (
+                  <div className={isActive ? 'animate-pulse' : ''}>
+                    {item.icon}
+                  </div>
+                )}
+                <span className="text-xs mt-1">{item.name}</span>
+              </Link>
+            );
+          })}
         </div>
       </nav>
     </>
