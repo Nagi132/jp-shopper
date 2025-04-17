@@ -1,5 +1,6 @@
 import './globals.css';
-import './win2k.css'; // Import Windows 2000 styles
+import './win2k.css';
+import './win-cursors.css'
 import { futuraCyrillicLight, futuraCyrillicMedium, futuraCyrillicBold } from '@/lib/fonts';
 
 export const metadata = {

@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { useTheme } from '@/components/layouts/ThemeProvider';
-import { Card } from '@/components/ui/card';
 import { ShoppingBag, Heart, MessageSquare, Clock } from 'lucide-react';
 
 /**
@@ -54,9 +53,9 @@ const HomePage = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {stats.map((stat, index) => (
-          <Card 
+          <div 
             key={index}
-            className="p-4 flex items-center border-l-4"
+            className="p-4 flex items-center border-l-4 rounded-sm"
             style={{ 
               borderLeftColor: `#${theme.borderColor}`,
               backgroundColor: `#${theme.bgColor}20`,
@@ -76,7 +75,7 @@ const HomePage = () => {
               <h3 className="font-bold">{stat.label}</h3>
               <p className="text-2xl font-light">{stat.value}</p>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
       

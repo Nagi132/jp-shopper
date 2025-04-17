@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Palette, Check, CircleSlash, Sparkles, GridIcon, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Palette, Check, CircleSlash, Sparkles, Grid, X } from 'lucide-react';
 
 /**
- * FloatingThemeCustomizer - An always-visible theme selector in the bottom right
+ * FloatingThemeCustomizer - A draggable color palette that starts as an icon
+ * Fixed to prevent opening after drag
  * 
  * @param {Object} props
  * @param {Function} props.onThemeChange - Callback when theme changes
  */
 const FloatingThemeCustomizer = ({ onThemeChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('colors'); // 'colors' or 'patterns'
   const [currentTheme, setCurrentTheme] = useState({
     borderColor: '69EFD7',
@@ -17,8 +19,18 @@ const FloatingThemeCustomizer = ({ onThemeChange }) => {
     pattern: 'none',
     name: 'Mint & Pink'
   });
+  const [position, setPosition] = useState({ x: 20, y: 20 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const customizerId = "theme-customizer";
+  const customizerRef = useRef(null);
   
-  // Predefined themes - enhanced with more Y2K-appropriate names
+  // Track if we've moved during this drag operation
+  const hasMoved = useRef(false);
+  // Track where the drag started
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  
+  // Predefined themes - Y2K-appropriate names
   const THEMES = [
     { 
       name: "Mint & Pink", 
@@ -58,7 +70,7 @@ const FloatingThemeCustomizer = ({ onThemeChange }) => {
     }
   ];
 
-  // Background patterns with icons
+  // Background patterns
   const BG_PATTERNS = [
     { 
       name: "None", 
@@ -81,41 +93,112 @@ const FloatingThemeCustomizer = ({ onThemeChange }) => {
     { 
       name: "Grid", 
       value: "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.2' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v40H0V0zm1 1h38v38H1V1z'/%3E%3C/g%3E%3C/svg%3E\")",
-      icon: <GridIcon size={16} />
-    },
-    { 
-      name: "Noise", 
-      value: "url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiDAAAAUVBMVEWFhYWDg4N3d3dtbW17e3t1dXWBgYGHh4d5eXlzc3OLi4ubm5uVlZWPj4+NjY19fX2JiYl/f39ra2uRkZGZmZlpaWmXl5dvb29xcXGTk5NnZ2c4zIgsAAAAIXRSTlP9zMXO1t3G0M/Q0dDN3NHMzMLKzczKzszNzcrSztfJ1mGKzKQAAADFSURBVHjazdVJDoMgFIThQkWZ5zmN93/L3sRo0M5j1bLq37/VV6HQ0/Z9LwA0dVVVNcFQ55zGQvscGHQEGwfUURcKsB1Qt6AecJANqH9RiAMs1skX1BULxAGJ5X5AbUAHWK7TCrUC5WC5Tg4IxAFWdDKoAXVALuohPZfJkxbUQmyci3RARgdYLOoEtZCUw48zvf2C2iMmU1lyify468RmpIkJGJM3OgP18hrVvUB2QB0gHLQEDYAgHAZkB0QGHhAseQGxoTk/+Uz0EgjTNb4AAAAASUVORK5CYII=')",
-      icon: <div className="w-4 h-4 bg-current opacity-50"></div>
+      icon: <Grid size={16} />
     }
   ];
 
-  // Load saved theme on component mount
+  // Load saved theme and position on component mount
   useEffect(() => {
     try {
+      // Load theme
       const savedTheme = localStorage.getItem('y2kTheme');
       if (savedTheme) {
         const theme = JSON.parse(savedTheme);
-        
-        // Find matching predefined theme or fallback to first theme
-        const matchedTheme = THEMES.find(t => 
-          t.borderColor === theme.borderColor && 
-          t.bgColor === theme.bgColor
-        );
-        
-        if (matchedTheme) {
-          setCurrentTheme({
-            ...matchedTheme,
-            pattern: theme.pattern || 'none',
-          });
-        }
+        setCurrentTheme(theme);
+      }
+      
+      // Load position
+      const savedPosition = localStorage.getItem('themeCustomizerPosition');
+      if (savedPosition) {
+        setPosition(JSON.parse(savedPosition));
+      } else {
+        // Default to bottom right
+        setPosition({ 
+          x: window.innerWidth - 80, 
+          y: window.innerHeight - 80 
+        });
       }
     } catch (error) {
-      console.error("Error loading theme:", error);
+      console.error("Error loading settings:", error);
     }
   }, []);
 
-  // Apply theme
+  // Handle dragging start for both open and closed states
+  const handleMouseDown = (e) => {
+    // Dragging is allowed on title bar when open, or the entire button when closed
+    if ((isOpen && e.target.closest('.customizer-drag-handle')) || 
+        (!isOpen && e.target.closest('#theme-customizer-button'))) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Record drag start position
+      dragStartPos.current = {
+        x: e.clientX,
+        y: e.clientY
+      };
+      
+      // Reset movement flag
+      hasMoved.current = false;
+      
+      setIsDragging(true);
+      
+      const rect = customizerRef.current.getBoundingClientRect();
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+    }
+  };
+  
+  // Handle dragging for both states
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (isDragging) {
+        // Calculate distance moved since drag start
+        const dx = Math.abs(e.clientX - dragStartPos.current.x);
+        const dy = Math.abs(e.clientY - dragStartPos.current.y);
+        
+        // If moved more than 5px in any direction, consider it a drag
+        if (dx > 5 || dy > 5) {
+          hasMoved.current = true;
+        }
+        
+        // Calculate boundaries based on state - open panel is larger
+        const width = isOpen ? 220 : 48; 
+        const height = isOpen ? 200 : 48;
+        
+        const newX = Math.max(0, Math.min(window.innerWidth - width, e.clientX - dragOffset.x));
+        const newY = Math.max(0, Math.min(window.innerHeight - height, e.clientY - dragOffset.y));
+        
+        setPosition({ x: newX, y: newY });
+      }
+    };
+    
+    const handleMouseUp = (e) => {
+      if (isDragging) {
+        // If this was a click (no significant movement), toggle open/closed
+        if (!hasMoved.current && !isOpen) {
+          setIsOpen(true);
+        }
+        
+        setIsDragging(false);
+        
+        // Save position
+        localStorage.setItem('themeCustomizerPosition', JSON.stringify(position));
+      }
+    };
+    
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset, position, isOpen]);
+
+  // Apply theme changes
   const applyTheme = (theme, pattern = currentTheme.pattern) => {
     // Create full theme object
     const fullTheme = {
@@ -140,117 +223,139 @@ const FloatingThemeCustomizer = ({ onThemeChange }) => {
     applyTheme(currentTheme, pattern);
   };
 
-  // Find current pattern object
-  const currentPatternObj = BG_PATTERNS.find(p => p.value === currentTheme.pattern) || BG_PATTERNS[0];
-
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      {/* Always visible palette bar */}
-      <div 
-        className="flex items-center p-1 rounded-lg shadow-[3px_3px_0_rgba(0,0,0,0.3)]"
-        style={{
-          backgroundColor: `#${currentTheme.bgColor}`,
-          borderWidth: '2px',
-          borderStyle: 'solid', 
-          borderColor: `#${currentTheme.borderColor}`,
-          color: `#${currentTheme.textColor || '000000'}`
-        }}
-      >
-        {/* Palette Icon */}
-        <div className="px-2 flex items-center">
-          <Palette size={18} className="mr-2" />
-          <span className="text-xs font-bold">Theme</span>
-        </div>
-        
-        {/* Tabs */}
-        <div className="flex">
-          <button
-            onClick={() => setActiveTab('colors')}
-            className={`px-3 py-1 text-xs rounded-tl-md rounded-bl-md ${
-              activeTab === 'colors' 
-              ? 'bg-white bg-opacity-30 font-bold'
-              : 'hover:bg-white hover:bg-opacity-10'
-            }`}
-          >
-            Colors
-          </button>
-          <button
-            onClick={() => setActiveTab('patterns')}
-            className={`px-3 py-1 text-xs rounded-tr-md rounded-br-md ${
-              activeTab === 'patterns' 
-              ? 'bg-white bg-opacity-30 font-bold'
-              : 'hover:bg-white hover:bg-opacity-10'
-            }`}
-          >
-            Pattern
-          </button>
-        </div>
-        
-        {/* Current pattern indicator */}
-        <div className="ml-2 p-1 bg-white bg-opacity-30 rounded-full flex items-center justify-center">
-          {currentPatternObj.icon}
-        </div>
-      </div>
+    <div 
+      ref={customizerRef}
+      id={customizerId}
+      className="fixed z-50"
+      style={{
+        left: position.x,
+        top: position.y
+      }}
+    >
+      {/* Icon only when closed */}
+      {!isOpen && (
+        <button 
+          id="theme-customizer-button"
+          className="w-12 h-12 flex items-center justify-center rounded-full shadow-[3px_3px_0px_rgba(0,0,0,0.3)] cursor-win-move"
+          style={{
+            backgroundColor: `#${currentTheme.bgColor}`,
+            borderWidth: '2px',
+            borderStyle: 'solid', 
+            borderColor: `#${currentTheme.borderColor}`,
+          }}
+          onMouseDown={handleMouseDown}
+          title="Theme Customizer"
+        >
+          <Palette size={24} />
+        </button>
+      )}
       
-      {/* Contents based on active tab */}
-      <div 
-        className="mt-1 p-2 rounded-md shadow-[3px_3px_0_rgba(0,0,0,0.3)]"
-        style={{
-          backgroundColor: `#${currentTheme.bgColor}`,
-          borderWidth: '2px',
-          borderStyle: 'solid',
-          borderColor: `#${currentTheme.borderColor}`,
-          color: `#${currentTheme.textColor || '000000'}`
-        }}
-      >
-        {activeTab === 'colors' ? (
-          <div className="flex flex-wrap gap-2 justify-center">
-            {THEMES.map((theme) => (
-              <button
-                key={theme.name}
-                className={`relative w-12 h-12 rounded-full flex items-center justify-center border-2 transition-transform hover:scale-110 ${
-                  currentTheme.name === theme.name ? 'border-white' : 'border-transparent'
-                }`}
-                style={{ 
-                  background: `linear-gradient(45deg, #${theme.borderColor}, #${theme.bgColor})`,
-                  boxShadow: currentTheme.name === theme.name ? '0 0 0 2px rgba(255,255,255,0.3)' : 'none'
-                }}
-                onClick={() => applyTheme(theme)}
-                title={theme.name}
-              >
-                {currentTheme.name === theme.name && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Check className="text-white drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" />
-                  </div>
-                )}
-              </button>
-            ))}
+      {/* Expanded panel when open */}
+      {isOpen && (
+        <div 
+          className="shadow-[3px_3px_0px_rgba(0,0,0,0.3)] rounded-md overflow-hidden win2k-window"
+          style={{
+            backgroundColor: `#${currentTheme.bgColor}`,
+            borderWidth: '2px',
+            borderStyle: 'solid',
+            borderColor: `#${currentTheme.borderColor}`,
+            width: '220px'
+          }}
+        >
+          {/* Titlebar - draggable */}
+          <div 
+            className="h-7 flex items-center justify-between px-2 customizer-drag-handle cursor-win-move"
+            style={{
+              backgroundColor: `#${currentTheme.borderColor}`,
+              color: '#FFFFFF',
+            }}
+            onMouseDown={handleMouseDown}
+          >
+            <div className="flex items-center">
+              <Palette size={14} className="mr-1" />
+              <span className="text-xs font-bold">Theme Customizer</span>
+            </div>
+            <button 
+              className="w-4 h-4 flex items-center justify-center bg-gray-200 border border-gray-400 hover:bg-red-200"
+              onClick={() => setIsOpen(false)}
+            >
+              <X size={10} />
+            </button>
           </div>
-        ) : (
-          <div className="flex flex-wrap gap-2 justify-center">
-            {BG_PATTERNS.map((pattern) => (
-              <button
-                key={pattern.name}
-                className={`w-12 h-12 rounded-md border-2 flex items-center justify-center ${
-                  currentTheme.pattern === pattern.value 
-                    ? 'border-white' 
-                    : 'border-transparent hover:border-white hover:border-opacity-50'
-                }`}
-                style={{ 
-                  backgroundImage: pattern.value !== 'none' ? pattern.value : 'none',
-                  backgroundColor: pattern.value === 'none' ? '#ffffff60' : 'rgba(255,255,255,0.5)'
-                }}
-                onClick={() => applyPattern(pattern.value)}
-                title={pattern.name}
-              >
-                <div className="bg-white bg-opacity-70 w-8 h-8 rounded-full flex items-center justify-center shadow-sm">
-                  {pattern.icon}
-                </div>
-              </button>
-            ))}
+          
+          {/* Tabs */}
+          <div className="flex border-b" style={{ borderColor: `#${currentTheme.borderColor}40` }}>
+            <button
+              className={`px-3 py-1 text-xs ${activeTab === 'colors' ? 'bg-white bg-opacity-30 font-bold' : 'hover:bg-white hover:bg-opacity-20'}`}
+              onClick={() => setActiveTab('colors')}
+            >
+              Colors
+            </button>
+            <button
+              className={`px-3 py-1 text-xs ${activeTab === 'patterns' ? 'bg-white bg-opacity-30 font-bold' : 'hover:bg-white hover:bg-opacity-20'}`}
+              onClick={() => setActiveTab('patterns')}
+            >
+              Patterns
+            </button>
           </div>
-        )}
-      </div>
+          
+          {/* Content */}
+          <div className="p-3">
+            {activeTab === 'colors' ? (
+              <div className="grid grid-cols-3 gap-2">
+                {THEMES.map((theme) => (
+                  <button
+                    key={theme.name}
+                    className={`w-full h-12 rounded flex flex-col items-center justify-center transition-transform hover:scale-105 border-2 ${
+                      currentTheme.name === theme.name ? 'border-white' : 'border-transparent'
+                    }`}
+                    style={{ 
+                      background: `linear-gradient(45deg, #${theme.borderColor}, #${theme.bgColor})`,
+                      boxShadow: currentTheme.name === theme.name ? '0 0 0 2px rgba(255,255,255,0.3)' : 'none'
+                    }}
+                    onClick={() => applyTheme(theme)}
+                    title={theme.name}
+                  >
+                    {currentTheme.name === theme.name && (
+                      <Check className="text-white drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" size={14} />
+                    )}
+                    <span className="text-xs text-white drop-shadow-[0_0_1px_rgba(0,0,0,0.8)]">
+                      {theme.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {BG_PATTERNS.map((pattern) => (
+                  <button
+                    key={pattern.name}
+                    className={`h-12 rounded border-2 flex flex-col items-center justify-center ${
+                      currentTheme.pattern === pattern.value 
+                        ? 'border-white' 
+                        : 'border-transparent hover:border-white hover:border-opacity-50'
+                    }`}
+                    style={{ 
+                      backgroundImage: pattern.value !== 'none' ? pattern.value : 'none',
+                      backgroundColor: pattern.value === 'none' ? '#ffffff60' : 'rgba(255,255,255,0.5)'
+                    }}
+                    onClick={() => applyPattern(pattern.value)}
+                    title={pattern.name}
+                  >
+                    <div className="bg-white bg-opacity-70 w-8 h-8 rounded-full flex items-center justify-center shadow-sm">
+                      {pattern.icon}
+                    </div>
+                    <span className="text-xs mt-1">
+                      {pattern.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

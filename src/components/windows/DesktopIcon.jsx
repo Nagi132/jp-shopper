@@ -1,114 +1,171 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 
 /**
  * DesktopIcon - A Windows 2000 style desktop icon
- * 
- * @param {Object} props
- * @param {string} props.id - Unique identifier for the icon
- * @param {string} props.name - Display name of the icon
- * @param {string} props.icon - Path to the icon image
- * @param {Object} props.position - Position on the desktop {x, y}
- * @param {Function} props.onClick - Click handler
- * @param {boolean} props.isActive - Whether the app is currently open
- * @param {Object} props.theme - Theme colors
+ * Fixed version that prevents shifting/teleporting on click and drag
  */
 const DesktopIcon = ({
   id,
   name,
   icon,
-  position,
+  position = { x: 0, y: 0 },
   onClick,
   isActive,
-  theme
+  theme = { borderColor: '69EFD7', bgColor: 'FED1EB' }
 }) => {
-  const [isSelected, setIsSelected] = useState(false);
+  // Initialize state with the initial position exactly once
   const [iconPosition, setIconPosition] = useState(position);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
-  // Reset selection when clicking elsewhere
+  // Keep track of whether we're dragging
+  const [isDragging, setIsDragging] = useState(false);
+  
+  // Track selection state
+  const [isSelected, setIsSelected] = useState(false);
+  
+  // Create refs
+  const iconRef = useRef(null);
+  const dragStartPosRef = useRef({ x: 0, y: 0 });
+  const initialPositionSet = useRef(false);
+  
+  // Set initial position only once on mount, and when position prop changes dramatically
   useEffect(() => {
+    // Only update from props if not dragging and position changed significantly
+    // or if we haven't set initial position yet
+    if ((!initialPositionSet.current) || 
+        (!isDragging && 
+        (Math.abs(position.x - iconPosition.x) > 50 || Math.abs(position.y - iconPosition.y) > 50))) {
+      setIconPosition(position);
+      initialPositionSet.current = true;
+      
+      // Try to load saved position from localStorage
+      try {
+        const savedPositions = JSON.parse(localStorage.getItem('desktopIconPositions') || '{}');
+        if (savedPositions[id]) {
+          setIconPosition(savedPositions[id]);
+        }
+      } catch (error) {
+        console.error('Error loading saved position for icon:', id, error);
+      }
+    }
+  }, [position, id, isDragging, iconPosition.x, iconPosition.y]);
+  
+  // Handle click to select
+  const handleClick = (e) => {
+    e.stopPropagation();
+    setIsSelected(true);
+  };
+  
+  // Handle double click
+  const handleDoubleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Only trigger if not dragging
+    if (!isDragging) {
+      onClick();
+    }
+  };
+  
+  // Handle start of dragging
+  const handleMouseDown = (e) => {
+    // Only start drag if the icon is selected
+    if (isSelected) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Record where the drag started
+      dragStartPosRef.current = {
+        mouseX: e.clientX,
+        mouseY: e.clientY,
+        iconX: iconPosition.x,
+        iconY: iconPosition.y
+      };
+      
+      setIsDragging(true);
+    }
+  };
+  
+  // Mouse move handler for dragging
+  useEffect(() => {
+    // Define the handler inside the effect to have access to current state
+    const handleMouseMove = (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        
+        // Calculate the delta from the drag start position
+        const deltaX = e.clientX - dragStartPosRef.current.mouseX;
+        const deltaY = e.clientY - dragStartPosRef.current.mouseY;
+        
+        // Update position based on the starting position + delta
+        // This prevents accumulating small errors that cause drift
+        const newX = dragStartPosRef.current.iconX + deltaX;
+        const newY = dragStartPosRef.current.iconY + deltaY;
+        
+        setIconPosition({ x: newX, y: newY });
+      }
+    };
+    
+    // Mouse up handler for finishing the drag
+    const handleMouseUp = (e) => {
+      if (isDragging) {
+        setIsDragging(false);
+        
+        // Save position to localStorage
+        try {
+          const savedPositions = JSON.parse(localStorage.getItem('desktopIconPositions') || '{}');
+          savedPositions[id] = iconPosition;
+          localStorage.setItem('desktopIconPositions', JSON.stringify(savedPositions));
+        } catch (error) {
+          console.error('Error saving icon position:', error);
+        }
+      }
+    };
+    
+    // Reset selection when clicking elsewhere
     const handleDocumentClick = (e) => {
       if (!e.target.closest(`#desktop-icon-${id}`)) {
         setIsSelected(false);
       }
     };
     
+    // Add event listeners
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('mousedown', handleDocumentClick);
-    return () => document.removeEventListener('mousedown', handleDocumentClick);
-  }, [id]);
-  
-  // Handle icon click
-  const handleClick = (e) => {
-    e.stopPropagation();
-    setIsSelected(true);
-  };
-  
-  // Handle icon double click
-  const handleDoubleClick = (e) => {
-    e.stopPropagation();
-    onClick();
-  };
-  
-  // Handle icon mousedown for dragging
-  const handleMouseDown = (e) => {
-    if (isSelected) {
-      setIsDragging(true);
-      const rect = e.currentTarget.getBoundingClientRect();
-      setDragOffset({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
-      e.preventDefault(); // Prevent text selection
-    }
-  };
-  
-  // Handle dragging
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (isDragging) {
-        setIconPosition({
-          x: e.clientX - dragOffset.x,
-          y: e.clientY - dragOffset.y
-        });
-      }
-    };
     
-    const handleMouseUp = () => {
-      setIsDragging(false);
+    // Clean up
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousedown', handleDocumentClick);
     };
-    
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging, dragOffset]);
+  }, [isDragging, id, iconPosition]);
   
-  // Check if icon image exists, otherwise use placeholder
+  // Handle image error
   const handleImageError = (e) => {
     e.target.src = '/icons/default.svg';
   };
   
   return (
     <div
+      ref={iconRef}
       id={`desktop-icon-${id}`}
       className="desktop-icon absolute flex flex-col items-center justify-center w-16 select-none"
       style={{
         left: iconPosition.x,
         top: iconPosition.y,
-        cursor: isSelected ? 'move' : 'default',
+        cursor: isSelected ? 'cursor-win-move' : 'cursor-win-default',
+        userSelect: 'none',
+        pointerEvents: 'auto', // Ensures the icon receives mouse events
+        touchAction: 'none', // Prevents the browser from handling touch events
       }}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onMouseDown={handleMouseDown}
+      draggable={false} // Disable HTML5 drag and drop
     >
       {/* Icon image */}
       <div 
@@ -122,10 +179,12 @@ const DesktopIcon = ({
         <div className="w-10 h-10 relative">
           <Image
             src={icon || '/icons/default.svg'}
-            alt={name}
+            alt={name || `Icon for ${id}`}
             fill
-            style={{objectFit: 'contain'}}
+            style={{ objectFit: 'contain' }}
             onError={handleImageError}
+            draggable={false} // Prevents the image from being dragged
+            unoptimized={true} // Prevents Next.js image optimization
           />
           {isActive && (
             <div 
@@ -138,11 +197,12 @@ const DesktopIcon = ({
       
       {/* Icon label */}
       <div 
-        className={`text-xs text-center px-1 py-0.5 rounded leading-tight max-w-full ${isSelected ? 'text-white bg-blue-500' : 'text-black'}`}
+        className={`text-xs text-center px-1 py-0.5 rounded leading-tight max-w-full ${isSelected ? 'text-white' : 'text-black'}`}
         style={{
           backgroundColor: isSelected ? `#${theme.borderColor}` : 'transparent',
           color: isSelected ? '#FFFFFF' : '#000000',
           textShadow: !isSelected ? '0 0 3px rgba(255,255,255,0.7)' : 'none',
+          userSelect: 'none', // Prevents text selection
         }}
       >
         {name}

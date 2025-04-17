@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/components/layouts/ThemeProvider';
-import DesktopIcon from '@/components/windows/DesktopIcon';
-import Taskbar from '@/components/windows/Taskbar';
-import WindowManager from '@/components/windows/WindowManager';
-import StartMenu from '@/components/windows/StartMenu';
+import DesktopIcons from './DesktopIcons';
+import Taskbar from './Taskbar';
+import WindowManager from './WindowManager';
+import StartMenu from './StartMenu';
 
 /**
  * WindowsDesktop - A Windows 2000 style desktop environment
@@ -16,45 +16,6 @@ const WindowsDesktop = ({ children }) => {
   const [activeWindow, setActiveWindow] = useState(null);
   const [showStartMenu, setShowStartMenu] = useState(false);
   const desktopRef = useRef(null);
-  
-  // Desktop icons configuration
-  const desktopIcons = [
-    { 
-      id: 'home', 
-      name: 'Home', 
-      icon: '/icons/home.svg',
-      component: 'HomePage',
-      defaultPos: { x: 20, y: 20 }
-    },
-    { 
-      id: 'explore', 
-      name: 'Explore', 
-      icon: '/icons/explore.svg',
-      component: 'ExplorePage',
-      defaultPos: { x: 20, y: 100 }
-    },
-    { 
-      id: 'messages', 
-      name: 'Messages', 
-      icon: '/icons/messages.svg',
-      component: 'MessagesPage',
-      defaultPos: { x: 20, y: 180 }
-    },
-    { 
-      id: 'requests', 
-      name: 'Requests', 
-      icon: '/icons/requests.svg',
-      component: 'RequestsPage',
-      defaultPos: { x: 20, y: 260 }
-    },
-    { 
-      id: 'favorites', 
-      name: 'Favorites', 
-      icon: '/icons/favorites.svg',
-      component: 'FavoritesPage',
-      defaultPos: { x: 20, y: 340 }
-    }
-  ];
 
   // Handle opening a new window
   const handleOpenWindow = (appId, appComponent, title) => {
@@ -149,11 +110,6 @@ const WindowsDesktop = ({ children }) => {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [showStartMenu]);
 
-  // Function to determine if a component is already open
-  const isComponentOpen = (componentName) => {
-    return openWindows.some(w => w.component === componentName && !w.minimized);
-  };
-
   // Calculate desktop color based on theme
   const getDesktopColor = () => {
     return {
@@ -172,20 +128,11 @@ const WindowsDesktop = ({ children }) => {
         style={getDesktopColor()}
       >
         {/* Desktop Icons */}
-        <div className="absolute top-0 left-0 right-0 bottom-0">
-          {desktopIcons.map((icon) => (
-            <DesktopIcon
-              key={icon.id}
-              id={icon.id}
-              name={icon.name}
-              icon={icon.icon}
-              position={icon.defaultPos}
-              onClick={() => handleOpenWindow(icon.id, icon.component, icon.name)}
-              isActive={isComponentOpen(icon.component)}
-              theme={theme}
-            />
-          ))}
-        </div>
+        <DesktopIcons
+          onOpenWindow={handleOpenWindow}
+          openWindows={openWindows}
+          theme={theme}
+        />
 
         {/* Windows */}
         <WindowManager

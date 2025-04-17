@@ -1,0 +1,98 @@
+/* Windows cursor styles */
+.cursor-win-default {
+    cursor: url('/cursors/arrow.cur'), default;
+  }
+  
+  .cursor-win-pointer {
+    cursor: url('/cursors/Link Select.cur'), pointer;
+  }
+  
+  .cursor-win-text {
+    cursor: url('/cursors/Text Select.cur'), text;
+  }
+  
+  .cursor-win-wait {
+    cursor: url('/cursors/Busy.cur'), wait;
+  }
+  
+  .cursor-win-busy {
+    cursor: url('/cursors/Working in Background.cur'), progress;
+  }
+  
+  .cursor-win-help {
+    cursor: url('/cursors/Help Select.cur'), help;
+  }
+  
+  .cursor-win-move {
+    cursor: url('/cursors/Move.cur'), move;
+  }
+  
+  .cursor-win-precision {
+    cursor: url('/cursors/Precision Select.cur'), crosshair;
+  }
+  
+  .cursor-win-resize-nwse {
+    cursor: url('/cursors/Diagonal Resize 1.cur'), nwse-resize;
+  }
+  
+  .cursor-win-resize-nesw {
+    cursor: url('/cursors/Diagonal Resize 2.cur'), nesw-resize;
+  }
+  
+  .cursor-win-resize-ns {
+    cursor: url('/cursors/Vertical Resize.cur'), ns-resize;
+  }
+  
+  .cursor-win-resize-ew {
+    cursor: url('/cursors/Horizontal Resize.cur'), ew-resize;
+  }
+  
+  .cursor-win-unavailable {
+    cursor: url('/cursors/Unavailable.cur'), not-allowed;
+  }
+  
+  .cursor-win-alternate {
+    cursor: url('/cursors/Alternate Select.cur'), auto;
+  }
+  
+  .cursor-win-handwriting {
+    cursor: url('/cursors/Handwriting.cur'), auto;
+  }
+  
+  /* Windows 2000 scrollbar styles */
+  .win2k-scrollbar::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-track {
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+    box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+  }
+  
+  .win2k-scrollbar::-webkit-scrollbar-button {
+    background-color: #d4d0c8;
+    border: 1px solid #808080;
+    box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+    width: 16px;
+    height: 16px;
+  }
+  
+  /* Window styles */
+  .win2k-window {
+    border: 2px solid #d4d0c8;
+    background-color: #d4d0c8;
+    box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.3);
+    border-radius: 0;
+  }
+  
+  /* Add retro pixel effect */
+  .win2k-pixel {
+    image-rendering: pixelated;
+  }

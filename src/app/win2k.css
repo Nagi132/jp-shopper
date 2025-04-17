@@ -1,57 +1,6 @@
 /* Windows 2000 Style CSS */
 
-/* Windows cursor styles */
-.cursor-win-default {
-    cursor: url('/cursors/arrow.png'), default;
-  }
-  
-  .cursor-win-pointer {
-    cursor: url('/cursors/hand.png'), pointer;
-  }
-  
-  .cursor-win-text {
-    cursor: url('/cursors/text.png'), text;
-  }
-  
-  .cursor-win-wait {
-    cursor: url('/cursors/wait.gif'), wait;
-  }
-  
-  .cursor-win-move {
-    cursor: url('/cursors/move.png'), move;
-  }
-  
-  .cursor-win-resize-nw {
-    cursor: url('/cursors/nw-resize.png'), nw-resize;
-  }
-  
-  .cursor-win-resize-ne {
-    cursor: url('/cursors/ne-resize.png'), ne-resize;
-  }
-  
-  .cursor-win-resize-sw {
-    cursor: url('/cursors/sw-resize.png'), sw-resize;
-  }
-  
-  .cursor-win-resize-se {
-    cursor: url('/cursors/se-resize.png'), se-resize;
-  }
-  
-  .cursor-win-resize-n {
-    cursor: url('/cursors/n-resize.png'), n-resize;
-  }
-  
-  .cursor-win-resize-s {
-    cursor: url('/cursors/s-resize.png'), s-resize;
-  }
-  
-  .cursor-win-resize-e {
-    cursor: url('/cursors/e-resize.png'), e-resize;
-  }
-  
-  .cursor-win-resize-w {
-    cursor: url('/cursors/w-resize.png'), w-resize;
-  }
+
   
   /* Windows 2000 scrollbar styles */
   .win2k-scrollbar::-webkit-scrollbar {
