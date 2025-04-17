@@ -1,6 +1,8 @@
+// src/components/windows/StartMenu.jsx
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   Home,
   Search,
@@ -15,212 +17,544 @@ import {
   Calendar,
   FileText,
   Upload,
-  Monitor
+  Monitor,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Terminal,
+  Laptop,
+  Globe,
+  PaintBucket,
+  Mail,
+  Music,
+  Printer,
+  FolderOpen,
+  Power,
+  LayoutGrid,
+  PieChart,
+  Book
 } from 'lucide-react';
 
 /**
- * StartMenu - A Windows 2000 style Start Menu
+ * Enhanced Windows 2000 Style Start Menu with submenus
  * 
  * @param {Object} props
  * @param {Function} props.onClose - Function to close the menu
  * @param {Function} props.onOpenWindow - Function to open a window
  * @param {Object} props.theme - Theme colors
+ * @param {string} props.username - Username to display (optional)
  */
-const StartMenu = ({ onClose, onOpenWindow, theme }) => {
-  // Handle logout
-  const handleLogout = () => {
-    // Close the start menu
-    onClose();
+const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
+  const [recentItems, setRecentItems] = useState([]);
+  const [activeSubmenu, setActiveSubmenu] = useState(null);
+  const [highlightedItem, setHighlightedItem] = useState(null);
+  
+  // Calculate contrasting text color
+  const getContrastColor = (hexColor) => {
+    if (!hexColor) return '#000000';
+    const r = parseInt(hexColor.substring(0, 2), 16);
+    const g = parseInt(hexColor.substring(2, 2), 16);
+    const b = parseInt(hexColor.substring(4, 2), 16);
     
-    // In a real app, you would implement logout functionality here
-    if (typeof window !== 'undefined') {
-      alert('You are about to log out. This would normally redirect to the login page.');
+    // Calculate luminance - simplified formula
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    // Return white for dark colors, black for light
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
+  };
+  
+  // Load recent items from localStorage
+  useEffect(() => {
+    try {
+      const savedItems = localStorage.getItem('recentItems');
+      if (savedItems) {
+        setRecentItems(JSON.parse(savedItems));
+      } else {
+        // Default items
+        setRecentItems([
+          { id: 'explore', title: 'Explore', icon: <Search size={16} /> },
+          { id: 'requests', title: 'Requests', icon: <ShoppingBag size={16} /> },
+          { id: 'messages', title: 'Messages', icon: <MessageSquare size={16} /> }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error loading recent items:', error);
+    }
+  }, []);
+  
+  // Define main menu items
+  const mainMenuItems = [
+    // Programs menu (with submenu)
+    {
+      id: 'programs',
+      label: 'Programs',
+      icon: <LayoutGrid size={16} />,
+      hasSubmenu: true,
+      submenuItems: [
+        { id: 'internet', label: 'Internet Explorer', icon: <Globe size={16} />, component: 'InternetExplorer' },
+        { id: 'email', label: 'Outlook Express', icon: <Mail size={16} />, component: 'Email' },
+        { id: 'paint', label: 'Paint', icon: <PaintBucket size={16} />, component: 'Paint' },
+        { id: 'notepad', label: 'Notepad', icon: <FileText size={16} />, component: 'Notepad' },
+        { id: 'media-player', label: 'Windows Media Player', icon: <Music size={16} />, component: 'MediaPlayer' },
+        {
+          id: 'games',
+          label: 'Games',
+          icon: <Laptop size={16} />,
+          hasSubmenu: true,
+          submenuItems: [
+            { id: 'minesweeper', label: 'Minesweeper', component: 'Minesweeper' },
+            { id: 'solitaire', label: 'Solitaire', component: 'Solitaire' }
+          ]
+        },
+        { 
+          id: 'accessories',
+          label: 'Accessories',
+          icon: <FolderOpen size={16} />,
+          hasSubmenu: true,
+          submenuItems: [
+            { id: 'calculator', label: 'Calculator', component: 'Calculator' },
+            { id: 'command-prompt', label: 'Command Prompt', icon: <Terminal size={16} />, component: 'CommandPrompt' }
+          ]
+        }
+      ]
+    },
+    
+    // JapanShopper apps
+    { id: 'explore', label: 'Explore', icon: <Search size={16} />, component: 'ExplorePage' },
+    { id: 'requests', label: 'Requests', icon: <ShoppingBag size={16} />, component: 'RequestsPage' },
+    { id: 'messages', label: 'Messages', icon: <MessageSquare size={16} />, component: 'MessagesPage' },
+    { id: 'favorites', label: 'Favorites', icon: <Heart size={16} />, component: 'FavoritesPage' },
+    { id: 'notifications', label: 'Notifications', icon: <Bell size={16} />, component: 'NotificationsPage' },
+    
+    // Divider
+    { type: 'divider' },
+    
+    // Documents (with submenu for recent documents)
+    {
+      id: 'documents',
+      label: 'Documents',
+      icon: <Book size={16} />,
+      hasSubmenu: true,
+      submenuItems: [
+        { id: 'doc-1', label: 'Recent Document 1', icon: <FileText size={16} /> },
+        { id: 'doc-2', label: 'Recent Document 2', icon: <FileText size={16} /> },
+        { id: 'doc-3', label: 'Recent Document 3', icon: <FileText size={16} /> }
+      ]
+    },
+    
+    // Settings
+    { 
+      id: 'settings',
+      label: 'Settings',
+      icon: <Settings size={16} />,
+      hasSubmenu: true,
+      submenuItems: [
+        { id: 'control-panel', label: 'Control Panel', icon: <LayoutGrid size={16} />, component: 'ControlPanel' },
+        { id: 'printers', label: 'Printers', icon: <Printer size={16} />, component: 'Printers' },
+        { id: 'network', label: 'Network Connections', icon: <Globe size={16} />, component: 'Network' },
+        { id: 'taskbar', label: 'Taskbar & Start Menu', icon: <LayoutGrid size={16} />, component: 'TaskbarSettings' }
+      ]
+    },
+    
+    // Help
+    { id: 'help', label: 'Help', icon: <HelpCircle size={16} />, component: 'HelpPage' },
+    { id: 'search', label: 'Search', icon: <Search size={16} />, component: 'SearchPage' },
+    { id: 'run', label: 'Run...', icon: <ExternalLink size={16} />, component: 'RunWindow' },
+    
+    // Divider
+    { type: 'divider' },
+    
+    // Logout and shutdown
+    { id: 'logout', label: 'Log Out', icon: <LogOut size={16} />, action: 'logout' },
+    { id: 'shutdown', label: 'Shut Down...', icon: <Power size={16} />, action: 'shutdown' }
+  ];
+  
+  // Handle opening a window and tracking recent items
+  const handleOpenWindow = (id, component, title) => {
+    // Add to recent items (if not already there)
+    if (id && component && title) {
+      const newRecentItems = recentItems.filter(item => item.id !== id);
+      newRecentItems.unshift({ id, title, component });
+      
+      // Keep only the most recent 6 items
+      if (newRecentItems.length > 6) {
+        newRecentItems.pop();
+      }
+      
+      setRecentItems(newRecentItems);
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('recentItems', JSON.stringify(newRecentItems));
+      } catch (error) {
+        console.error('Error saving recent items:', error);
+      }
+    }
+    
+    // Open the window
+    if (id && component) {
+      onOpenWindow(id, component, title || id);
+      onClose();
     }
   };
   
+  // Handle logout action
+  const handleLogout = () => {
+    // Simulate logging out for now
+    alert('Logging out...');
+    onClose();
+  };
+  
+  // Handle shutdown action
+  const handleShutdown = () => {
+    // Show classic Windows shutdown dialog
+    if (confirm('Are you sure you want to shut down?')) {
+      // Simulate shutdown with a fun message
+      const shutdownScreen = document.createElement('div');
+      shutdownScreen.style.position = 'fixed';
+      shutdownScreen.style.inset = '0';
+      shutdownScreen.style.backgroundColor = '#000080';
+      shutdownScreen.style.color = 'white';
+      shutdownScreen.style.display = 'flex';
+      shutdownScreen.style.flexDirection = 'column';
+      shutdownScreen.style.alignItems = 'center';
+      shutdownScreen.style.justifyContent = 'center';
+      shutdownScreen.style.zIndex = '9999';
+      shutdownScreen.style.fontFamily = 'Courier New, monospace';
+      shutdownScreen.innerHTML = `
+        <div style="text-align: center;">
+          <h2>It is now safe to turn off your computer.</h2>
+          <p style="margin-top: 20px">(Just kidding! This is just the Windows 2000 shutdown screen)</p>
+          <button style="margin-top: 30px; padding: 5px 10px; background: #d4d0c8; border: 2px solid #404040; cursor: pointer;">
+            Restart
+          </button>
+        </div>
+      `;
+      document.body.appendChild(shutdownScreen);
+      
+      // Add click event to "restart" button
+      const restartButton = shutdownScreen.querySelector('button');
+      restartButton.addEventListener('click', () => {
+        document.body.removeChild(shutdownScreen);
+      });
+    }
+    
+    onClose();
+  };
+  
+  // Handle item click based on type
+  const handleItemClick = (item) => {
+    if (item.hasSubmenu) {
+      // Toggle submenu
+      setActiveSubmenu(activeSubmenu === item.id ? null : item.id);
+    } else if (item.component) {
+      // Open window
+      handleOpenWindow(item.id, item.component, item.label);
+    } else if (item.action === 'logout') {
+      handleLogout();
+    } else if (item.action === 'shutdown') {
+      handleShutdown();
+    }
+  };
+  
+  // Handle hovering on an item with a submenu
+  const handleItemHover = (item) => {
+    setHighlightedItem(item.id);
+    
+    // If item has a submenu, open it
+    if (item.hasSubmenu) {
+      setActiveSubmenu(item.id);
+    } else if (!item.hasSubmenu && activeSubmenu && !isParentSubmenu(item, activeSubmenu)) {
+      // If hovering over an item without a submenu and not in the active submenu's parent chain
+      // then close any open submenu
+      setActiveSubmenu(null);
+    }
+  };
+  
+  // Check if item is in the parent chain of the active submenu
+  const isParentSubmenu = (item, activeSubmenuId) => {
+    if (!item || !activeSubmenuId) return false;
+    
+    // Find the active submenu and its parent chain
+    const findParentChain = (items, targetId, parentChain = []) => {
+      for (const menuItem of items) {
+        if (menuItem.id === targetId) {
+          return [...parentChain, menuItem.id];
+        }
+        
+        if (menuItem.hasSubmenu && menuItem.submenuItems) {
+          const result = findParentChain(menuItem.submenuItems, targetId, [...parentChain, menuItem.id]);
+          if (result.length > 0) return result;
+        }
+      }
+      return [];
+    };
+    
+    const parentChain = findParentChain(mainMenuItems, activeSubmenuId);
+    return parentChain.includes(item.id);
+  };
+  
+  // Find submenu items for the active submenu
+  const getSubmenuItems = (menuId) => {
+    const findSubmenu = (items, id) => {
+      for (const item of items) {
+        if (item.id === id && item.hasSubmenu) {
+          return item.submenuItems || [];
+        }
+        
+        if (item.hasSubmenu && item.submenuItems) {
+          const submenu = findSubmenu(item.submenuItems, id);
+          if (submenu.length > 0) return submenu;
+        }
+      }
+      return [];
+    };
+    
+    return findSubmenu(mainMenuItems, menuId);
+  };
+  
+  // Get submenu position
+  const getSubmenuPosition = (menuId) => {
+    // Find all parent submenus
+    const findParentChain = (items, targetId, chain = []) => {
+      for (const item of items) {
+        if (item.id === targetId) {
+          return [...chain, item.id];
+        }
+        
+        if (item.hasSubmenu && item.submenuItems) {
+          const result = findParentChain(item.submenuItems, targetId, [...chain, item.id]);
+          if (result.length > 0) return result;
+        }
+      }
+      return [];
+    };
+    
+    const parentChain = findParentChain(mainMenuItems, menuId);
+    
+    // Return right position for nested submenus, top for first level
+    return parentChain.length > 1 ? 'right' : 'right-top';
+  };
+  
   return (
-    <div 
-      className="start-menu absolute bottom-10 left-0 z-50 w-64 overflow-hidden"
+    <div className="start-menu absolute bottom-10 left-0 z-50 flex overflow-hidden"
       style={{
-        backgroundColor: `#${theme.bgColor}`,
-        border: `2px solid #${theme.borderColor}`,
-        borderRadius: '3px',
-        boxShadow: '2px 2px 10px rgba(0,0,0,0.3)',
+        boxShadow: '3px 3px 10px rgba(0,0,0,0.3)',
       }}
     >
-      {/* Start Menu Header */}
+      {/* Left banner with logo and username */}
       <div 
-        className="h-16 flex items-center justify-start px-4"
+        className="w-60 h-full py-4 flex flex-col"
         style={{
-          backgroundImage: `linear-gradient(135deg, #${theme.borderColor}, #${theme.bgColor})`,
-          borderBottom: `1px solid #${theme.borderColor}80`,
+          background: `linear-gradient(135deg, #${theme.borderColor}, #${theme.bgColor})`,
+          color: getContrastColor(theme.borderColor),
+          borderRight: `1px solid #${theme.borderColor}80`,
         }}
       >
-        <div 
-          className="w-8 h-8 flex items-center justify-center mr-3 rounded-full"
-          style={{
-            backgroundColor: `#${theme.borderColor}50`,
-            border: `1px solid #${theme.borderColor}80`,
-          }}
-        >
-          <User size={20} color="#FFFFFF" />
+        <div className="flex items-center px-4 mb-6">
+          <div 
+            className="w-12 h-12 flex items-center justify-center rounded-full mr-3"
+            style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+          >
+            <User size={24} className="text-white" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-xl text-white">{username}</h3>
+            <p className="text-xs opacity-80 text-white">JapanShopper</p>
+          </div>
         </div>
-        <div className="text-white">
-          <div className="font-bold text-lg">JapanShopper</div>
-          <div className="text-xs opacity-80">User</div>
+        
+        {/* Recent items section */}
+        {recentItems.length > 0 && (
+          <div className="px-4 mb-4">
+            <h4 className="text-xs font-bold uppercase mb-2 text-white/70">Recent Items</h4>
+            <div className="space-y-1">
+              {recentItems.slice(0, 6).map((item) => (
+                <button
+                  key={item.id}
+                  className="w-full flex items-center px-2 py-1 text-white text-xs hover:bg-white/20 rounded-sm text-left transition-colors"
+                  onClick={() => handleOpenWindow(item.id, item.component || 'HomePage', item.title)}
+                >
+                  <Clock size={14} className="mr-2" />
+                  <span className="truncate">{item.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Internet section */}
+        <div className="px-4 mt-auto">
+          <h4 className="text-xs font-bold uppercase mb-2 text-white/70">Internet</h4>
+          <div className="space-y-1">
+            <button
+              className="w-full flex items-center px-2 py-1 text-white text-xs hover:bg-white/20 rounded-sm text-left transition-colors"
+              onClick={() => handleOpenWindow('browser', 'InternetExplorer', 'Internet Explorer')}
+            >
+              <Globe size={14} className="mr-2" />
+              <span>Internet Explorer</span>
+            </button>
+            <button
+              className="w-full flex items-center px-2 py-1 text-white text-xs hover:bg-white/20 rounded-sm text-left transition-colors"
+              onClick={() => handleOpenWindow('email', 'Email', 'Outlook Express')}
+            >
+              <Mail size={14} className="mr-2" />
+              <span>Outlook Express</span>
+            </button>
+          </div>
         </div>
       </div>
       
-      {/* Menu Content */}
-      <div className="flex">
-        {/* Main menu column */}
-        <div className="flex-1">
-          <StartMenuItem
-            icon={<Home size={16} />}
-            label="Home"
-            onClick={() => {
-              onOpenWindow('home', 'HomePage', 'Home');
-              onClose();
-            }}
-            theme={theme}
-          />
-          <StartMenuItem
-            icon={<Search size={16} />}
-            label="Explore"
-            onClick={() => {
-              onOpenWindow('explore', 'ExplorePage', 'Explore');
-              onClose();
-            }}
-            theme={theme}
-          />
-          <StartMenuItem
-            icon={<MessageSquare size={16} />}
-            label="Messages"
-            onClick={() => {
-              onOpenWindow('messages', 'MessagesPage', 'Messages');
-              onClose();
-            }}
-            theme={theme}
-          />
-          <StartMenuItem
-            icon={<ShoppingBag size={16} />}
-            label="Requests"
-            onClick={() => {
-              onOpenWindow('requests', 'RequestsPage', 'Requests');
-              onClose();
-            }}
-            theme={theme}
-          />
-          <StartMenuItem
-            icon={<Heart size={16} />}
-            label="Favorites"
-            onClick={() => {
-              onOpenWindow('favorites', 'FavoritesPage', 'Favorites');
-              onClose();
-            }}
-            theme={theme}
-          />
-          <StartMenuItem
-            icon={<Bell size={16} />}
-            label="Notifications"
-            onClick={() => {
-              onOpenWindow('notifications', 'NotificationsPage', 'Notifications');
-              onClose();
-            }}
-            theme={theme}
-          />
-          
-          {/* Divider */}
-          <div 
-            className="mx-2 my-1 border-t" 
-            style={{ borderColor: `#${theme.borderColor}40` }}
-          ></div>
-          
-          <StartMenuItem
-            icon={<Settings size={16} />}
-            label="Settings"
-            onClick={() => {
-              onOpenWindow('settings', 'SettingsPage', 'Settings');
-              onClose();
-            }}
-            theme={theme}
-          />
-          <StartMenuItem
-            icon={<HelpCircle size={16} />}
-            label="Help"
-            onClick={() => {
-              onOpenWindow('help', 'HelpPage', 'Help');
-              onClose();
-            }}
-            theme={theme}
-          />
-          <StartMenuItem
-            icon={<LogOut size={16} />}
-            label="Log Out"
-            onClick={handleLogout}
-            theme={theme}
-          />
-        </div>
-        
-        {/* Secondary menu column with system items */}
-        <div
-          className="w-12 py-1"
-          style={{ backgroundColor: `#${theme.borderColor}20` }}
-        >
-          <div className="flex flex-col items-center space-y-4 pt-2">
-            <IconButton
-              icon={<Calendar size={20} />}
-              theme={theme}
-              onClick={() => {}}
-            />
-            <IconButton
-              icon={<FileText size={20} />}
-              theme={theme}
-              onClick={() => {}}
-            />
-            <IconButton
-              icon={<Upload size={20} />}
-              theme={theme}
-              onClick={() => {}}
-            />
-            <IconButton
-              icon={<Monitor size={20} />}
-              theme={theme}
-              onClick={() => {}}
-            />
-          </div>
+      {/* Right side - main menu */}
+      <div 
+        className="w-60 max-h-[500px] overflow-y-auto"
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderTop: `2px solid #${theme.borderColor}`,
+          borderRight: `2px solid #${theme.borderColor}`,
+          borderBottom: `2px solid #${theme.borderColor}`,
+        }}
+      >
+        <div className="py-2">
+          {mainMenuItems.map((item, index) => {
+            if (item.type === 'divider') {
+              return (
+                <div 
+                  key={`divider-${index}`} 
+                  className="mx-2 my-1 border-t" 
+                  style={{ borderColor: '#d4d0c8' }}
+                ></div>
+              );
+            }
+            
+            const isHighlighted = highlightedItem === item.id;
+            const isSubmenuActive = activeSubmenu === item.id;
+            
+            return (
+              <div 
+                key={item.id} 
+                className="relative"
+                onMouseEnter={() => handleItemHover(item)}
+              >
+                <button
+                  className={`w-full flex items-center justify-between px-4 py-1.5 text-left text-sm ${
+                    isHighlighted || isSubmenuActive ? 'bg-[#0A246A] text-white' : 'text-black hover:bg-[#d4d0c8]'
+                  }`}
+                  onClick={() => handleItemClick(item)}
+                >
+                  <div className="flex items-center">
+                    <span className="w-6 h-6 flex items-center justify-center mr-2 text-inherit">
+                      {item.icon}
+                    </span>
+                    <span>{item.label}</span>
+                  </div>
+                  
+                  {item.hasSubmenu && (
+                    <ChevronRight size={14} className={isHighlighted || isSubmenuActive ? 'text-white' : 'text-gray-500'} />
+                  )}
+                </button>
+                
+                {/* Submenu */}
+                {item.hasSubmenu && isSubmenuActive && (
+                  <SubmenuPanel
+                    items={getSubmenuItems(item.id)}
+                    position={getSubmenuPosition(item.id)}
+                    onItemClick={handleItemClick}
+                    onItemHover={handleItemHover}
+                    theme={theme}
+                    parentItem={item}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 };
 
-// Start menu item component
-const StartMenuItem = ({ icon, label, onClick, theme }) => {
+// Submenu Panel Component
+const SubmenuPanel = ({ 
+  items, 
+  position = 'right-top', 
+  onItemClick, 
+  onItemHover,
+  theme,
+  parentItem
+}) => {
+  const submenuStyles = {
+    right: {
+      // Position to the right of parent menu
+      position: 'absolute',
+      top: '0',
+      left: '100%',
+      marginLeft: '2px',
+    },
+    'right-top': {
+      // Position to the right of parent with top alignment
+      position: 'absolute',
+      top: '0',
+      left: '100%',
+      marginLeft: '2px',
+    }
+  };
+  
   return (
-    <button 
-      className="w-full flex items-center px-4 py-2 text-sm hover:bg-white hover:bg-opacity-20 text-left"
-      onClick={onClick}
-      style={{ color: `#${theme.textColor || '000000'}` }}
+    <div 
+      className="w-56 py-1 border-2 shadow-md z-50 bg-white"
+      style={{
+        ...submenuStyles[position],
+        borderColor: theme ? `#${theme.borderColor}` : '#a0a0a0',
+      }}
     >
-      <span className="w-5 h-5 flex items-center justify-center mr-3" style={{ color: `#${theme.borderColor}` }}>
-        {icon}
-      </span>
-      {label}
-    </button>
-  );
-};
-
-// Icon button component for the secondary menu
-const IconButton = ({ icon, onClick, theme }) => {
-  return (
-    <button
-      className="w-8 h-8 flex items-center justify-center rounded hover:bg-white hover:bg-opacity-20"
-      onClick={onClick}
-      style={{ color: `#${theme.borderColor}` }}
-    >
-      {icon}
-    </button>
+      {items.map((item, index) => {
+        if (item.type === 'divider') {
+          return (
+            <div 
+              key={`divider-${index}`} 
+              className="mx-2 my-1 border-t" 
+              style={{ borderColor: '#d4d0c8' }}
+            ></div>
+          );
+        }
+        
+        return (
+          <div 
+            key={item.id} 
+            className="relative"
+            onMouseEnter={() => onItemHover(item)}
+          >
+            <button
+              className="w-full flex items-center justify-between px-4 py-1.5 text-sm text-left hover:bg-[#0A246A] hover:text-white"
+              onClick={() => onItemClick(item)}
+            >
+              <div className="flex items-center">
+                <span className="w-6 h-6 flex items-center justify-center mr-2">
+                  {item.icon || <div className="w-4 h-4 rounded-sm bg-gray-200"></div>}
+                </span>
+                <span>{item.label}</span>
+              </div>
+              
+              {item.hasSubmenu && (
+                <ChevronRight size={14} className="text-gray-500" />
+              )}
+            </button>
+            
+            {/* Nested submenu (if any) */}
+            {item.hasSubmenu && item.id === parentItem.activeSubmenu && (
+              <SubmenuPanel
+                items={item.submenuItems}
+                position="right"
+                onItemClick={onItemClick}
+                onItemHover={onItemHover}
+                theme={theme}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 };
 

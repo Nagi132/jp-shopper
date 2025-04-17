@@ -9,6 +9,7 @@ import FavoritesPage from './FavoritesPage';
 import NotificationsPage from './NotificationsPage';
 import SettingsPage from './SettingsPage';
 import HelpPage from './HelpPage';
+import RequestDetail from './RequestDetail';
 
 // Export all components for use in the window manager
 export {
@@ -19,5 +20,6 @@ export {
   FavoritesPage,
   NotificationsPage,
   SettingsPage,
-  HelpPage
+  HelpPage,
+  RequestDetail
 };

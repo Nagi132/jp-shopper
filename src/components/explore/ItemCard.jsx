@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import { Heart } from "lucide-react";
 
 /**
@@ -93,67 +92,65 @@ const ItemCard = ({
         border: theme ? `2px solid #${theme.borderColor}` : undefined,
       }}
     >
-      <Link href={`/requests/${id}`} className="block">
-        <div className="relative">
-          {/* Main Image */}
-          <div className="relative aspect-auto overflow-hidden">
-            <img 
-              src={primaryImage}
-              alt={title}
-              className="w-full h-auto object-cover"
-              loading="lazy"
-            />
-          </div>
+      <div className="relative">
+        {/* Main Image */}
+        <div className="relative aspect-auto overflow-hidden">
+          <img 
+            src={primaryImage}
+            alt={title}
+            className="w-full h-auto object-cover"
+            loading="lazy"
+          />
+        </div>
 
-          {/* Favorite Heart Button */}
-          <button
-            className="absolute top-2 right-2 z-10"
-            onClick={toggleFavorite}
-            aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-          >
-            <Heart 
-              className="w-5 h-5 text-white drop-shadow-[1px_1px_0px_rgba(0,0,0,0.7)]"
-              fill={isFavorite ? "#E7F227" : "transparent"}
-              stroke={isFavorite ? "#E7F227" : "white"}
-            />
-          </button>
-          
-          {/* Status Overlay */}
-          {(isSold || isRequested) && (
-            <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-              {isSold && (
-                <span className="text-[#E7F227] font-bold text-lg px-3 py-1">
-                  SOLD
-                </span>
-              )}
-              {isRequested && !isSold && (
-                <span className="text-[#51F5FF] font-bold text-lg px-3 py-1">
-                  REQUESTED
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {/* Item Info - Displayed below the image */}
-        <div 
-          className="p-2"
-          style={{
-            backgroundColor: theme ? `#${theme.bgColor}` : undefined,
-            color: theme?.textColor ? `#${theme.textColor}` : undefined,
-          }}
+        {/* Favorite Heart Button */}
+        <button
+          className="absolute top-2 right-2 z-10"
+          onClick={toggleFavorite}
+          aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
         >
-          {/* Title - Truncate if too long */}
-          <h3 className="text-sm font-medium truncate">
-            {title}
-          </h3>
-          
-          {/* Price */}
-          <div className="text-sm">
-            {isWanted ? 'WANTED' : formatPrice(price)}
+          <Heart 
+            className="w-5 h-5 text-white drop-shadow-[1px_1px_0px_rgba(0,0,0,0.7)]"
+            fill={isFavorite ? "#E7F227" : "transparent"}
+            stroke={isFavorite ? "#E7F227" : "white"}
+          />
+        </button>
+        
+        {/* Status Overlay */}
+        {(isSold || isRequested) && (
+          <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+            {isSold && (
+              <span className="text-[#E7F227] font-bold text-lg px-3 py-1">
+                SOLD
+              </span>
+            )}
+            {isRequested && !isSold && (
+              <span className="text-[#51F5FF] font-bold text-lg px-3 py-1">
+                REQUESTED
+              </span>
+            )}
           </div>
+        )}
+      </div>
+      
+      {/* Item Info - Displayed below the image */}
+      <div 
+        className="p-2"
+        style={{
+          backgroundColor: theme ? `#${theme.bgColor}` : undefined,
+          color: theme?.textColor ? `#${theme.textColor}` : undefined,
+        }}
+      >
+        {/* Title - Truncate if too long */}
+        <h3 className="text-sm font-medium truncate">
+          {title}
+        </h3>
+        
+        {/* Price */}
+        <div className="text-sm">
+          {isWanted ? 'WANTED' : formatPrice(price)}
         </div>
-      </Link>
+      </div>
     </div>
   );
 };

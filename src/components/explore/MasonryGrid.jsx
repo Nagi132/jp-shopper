@@ -12,8 +12,9 @@ import ItemCard from './ItemCard';
  * @param {Array} props.items - Array of items to display
  * @param {string} props.className - Additional CSS classes
  * @param {Object} props.theme - Theme properties (borderColor, bgColor, pattern)
+ * @param {Function} props.onItemClick - Optional callback for item clicks
  */
-const MasonryGrid = ({ items = [], className = '', theme }) => {
+const MasonryGrid = ({ items = [], className = '', theme, onItemClick }) => {
   // Breakpoint columns config for responsive design
   const breakpointColumnsObj = {
     default: 3,  // Default to 3 columns
@@ -120,7 +121,12 @@ const MasonryGrid = ({ items = [], className = '', theme }) => {
         columnClassName="masonry-grid_column"
       >
         {items.map((item) => (
-          <div key={item.id || Math.random().toString(36)} className="masonry-item">
+          <div 
+            key={item.id || Math.random().toString(36)} 
+            className="masonry-item"
+            onClick={onItemClick ? () => onItemClick(item) : undefined}
+            style={onItemClick ? { cursor: 'pointer' } : {}}
+          >
             <ItemCard 
               item={item}
               isWanted={item.status === 'open'}
