@@ -1,38 +1,15 @@
-// src/components/windows/StartMenu.jsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import {
-  Home,
-  Search,
-  MessageSquare,
-  User,
-  ShoppingBag,
-  Heart,
-  Bell,
-  Settings,
-  LogOut,
-  HelpCircle,
-  Calendar,
-  FileText,
-  Upload,
-  Monitor,
-  ChevronRight,
-  Clock,
-  ExternalLink,
-  Terminal,
-  Laptop,
-  Globe,
-  PaintBucket,
-  Mail,
-  Music,
-  Printer,
-  FolderOpen,
-  Power,
-  LayoutGrid,
-  PieChart,
-  Book
+import { supabase } from '@/lib/supabase/client';
+import { 
+  Home, Search, MessageSquare, User, ShoppingBag, Heart, 
+  Bell, Settings, LogOut, HelpCircle, Calendar, FileText,
+  Upload, Monitor, ChevronRight, Clock, ExternalLink, Terminal,
+  Laptop, Globe, PaintBucket, Mail, Music, Printer, FolderOpen,
+  Power, LayoutGrid, PieChart, Book, Info
 } from 'lucide-react';
 
 /**
@@ -47,20 +24,29 @@ import {
 const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
   const [recentItems, setRecentItems] = useState([]);
   const [activeSubmenu, setActiveSubmenu] = useState(null);
-  const [highlightedItem, setHighlightedItem] = useState(null);
+  const [expandedSubmenuPath, setExpandedSubmenuPath] = useState([]);
+  const [pendingSubmenu, setPendingSubmenu] = useState(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const router = useRouter();
+  const submenuTimerRef = useRef(null);
   
   // Calculate contrasting text color
   const getContrastColor = (hexColor) => {
     if (!hexColor) return '#000000';
-    const r = parseInt(hexColor.substring(0, 2), 16);
-    const g = parseInt(hexColor.substring(2, 2), 16);
-    const b = parseInt(hexColor.substring(4, 2), 16);
     
-    // Calculate luminance - simplified formula
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    // Return white for dark colors, black for light
-    return luminance > 0.5 ? '#000000' : '#FFFFFF';
+    try {
+      const r = parseInt(hexColor.substring(0, 2), 16);
+      const g = parseInt(hexColor.substring(2, 2), 16);
+      const b = parseInt(hexColor.substring(4, 2), 16);
+      
+      // Calculate luminance - simplified formula
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      
+      // Return white for dark colors, black for light
+      return luminance > 0.5 ? '#000000' : '#FFFFFF';
+    } catch (err) {
+      return '#000000'; // Default to black on error
+    }
   };
   
   // Load recent items from localStorage
@@ -72,15 +58,53 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
       } else {
         // Default items
         setRecentItems([
-          { id: 'explore', title: 'Explore', icon: <Search size={16} /> },
-          { id: 'requests', title: 'Requests', icon: <ShoppingBag size={16} /> },
-          { id: 'messages', title: 'Messages', icon: <MessageSquare size={16} /> }
+          { id: 'explore', title: 'Explore', component: 'ExplorePage', icon: <Search size={16} /> },
+          { id: 'requests', title: 'Requests', component: 'RequestsPage', icon: <ShoppingBag size={16} /> },
+          { id: 'messages', title: 'Messages', component: 'MessagesPage', icon: <MessageSquare size={16} /> }
         ]);
       }
     } catch (error) {
       console.error('Error loading recent items:', error);
     }
   }, []);
+  
+  // Setup delayed submenu handlers
+  useEffect(() => {
+    if (pendingSubmenu) {
+      // Clear any existing timer
+      if (submenuTimerRef.current) {
+        clearTimeout(submenuTimerRef.current);
+      }
+      
+      // Set a new timer to open the submenu after a short delay
+      submenuTimerRef.current = setTimeout(() => {
+        setActiveSubmenu(pendingSubmenu);
+        setPendingSubmenu(null);
+      }, 200); // 200ms delay
+    }
+    
+    return () => {
+      if (submenuTimerRef.current) {
+        clearTimeout(submenuTimerRef.current);
+      }
+    };
+  }, [pendingSubmenu]);
+  
+  // Handle document click to close the menu when clicking outside
+  useEffect(() => {
+    const handleDocumentClick = (e) => {
+      // Check if click was outside the menu
+      if (!e.target.closest('.start-menu')) {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [onClose]);
   
   // Define main menu items
   const mainMenuItems = [
@@ -120,6 +144,7 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
     },
     
     // JapanShopper apps
+    { id: 'home', label: 'Home', icon: <Home size={16} />, component: 'HomePage' },
     { id: 'explore', label: 'Explore', icon: <Search size={16} />, component: 'ExplorePage' },
     { id: 'requests', label: 'Requests', icon: <ShoppingBag size={16} />, component: 'RequestsPage' },
     { id: 'messages', label: 'Messages', icon: <MessageSquare size={16} />, component: 'MessagesPage' },
@@ -199,9 +224,13 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
   };
   
   // Handle logout action
-  const handleLogout = () => {
-    // Simulate logging out for now
-    alert('Logging out...');
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
     onClose();
   };
   
@@ -259,39 +288,21 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
   
   // Handle hovering on an item with a submenu
   const handleItemHover = (item) => {
-    setHighlightedItem(item.id);
-    
-    // If item has a submenu, open it
+    // If item has a submenu, queue it to open after a delay
     if (item.hasSubmenu) {
-      setActiveSubmenu(item.id);
-    } else if (!item.hasSubmenu && activeSubmenu && !isParentSubmenu(item, activeSubmenu)) {
-      // If hovering over an item without a submenu and not in the active submenu's parent chain
-      // then close any open submenu
-      setActiveSubmenu(null);
+      setPendingSubmenu(item.id);
+    } else {
+      // If hovering over an item without a submenu, close any open submenu
+      setPendingSubmenu(null);
     }
   };
   
-  // Check if item is in the parent chain of the active submenu
-  const isParentSubmenu = (item, activeSubmenuId) => {
-    if (!item || !activeSubmenuId) return false;
-    
-    // Find the active submenu and its parent chain
-    const findParentChain = (items, targetId, parentChain = []) => {
-      for (const menuItem of items) {
-        if (menuItem.id === targetId) {
-          return [...parentChain, menuItem.id];
-        }
-        
-        if (menuItem.hasSubmenu && menuItem.submenuItems) {
-          const result = findParentChain(menuItem.submenuItems, targetId, [...parentChain, menuItem.id]);
-          if (result.length > 0) return result;
-        }
-      }
-      return [];
-    };
-    
-    const parentChain = findParentChain(mainMenuItems, activeSubmenuId);
-    return parentChain.includes(item.id);
+  // Handle mouseleave on entire menu
+  const handleMenuMouseLeave = () => {
+    setPendingSubmenu(null);
+    if (submenuTimerRef.current) {
+      clearTimeout(submenuTimerRef.current);
+    }
   };
   
   // Find submenu items for the active submenu
@@ -337,10 +348,9 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
   };
   
   return (
-    <div className="start-menu absolute bottom-10 left-0 z-50 flex overflow-hidden"
-      style={{
-        boxShadow: '3px 3px 10px rgba(0,0,0,0.3)',
-      }}
+    <div 
+      className="start-menu absolute bottom-10 left-0 z-50 flex overflow-hidden shadow-[4px_4px_10px_rgba(0,0,0,0.3)]"
+      onMouseLeave={handleMenuMouseLeave}
     >
       {/* Left banner with logo and username */}
       <div 
@@ -427,8 +437,7 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
               );
             }
             
-            const isHighlighted = highlightedItem === item.id;
-            const isSubmenuActive = activeSubmenu === item.id;
+            const isHighlighted = activeSubmenu === item.id || pendingSubmenu === item.id;
             
             return (
               <div 
@@ -438,7 +447,7 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
               >
                 <button
                   className={`w-full flex items-center justify-between px-4 py-1.5 text-left text-sm ${
-                    isHighlighted || isSubmenuActive ? 'bg-[#0A246A] text-white' : 'text-black hover:bg-[#d4d0c8]'
+                    isHighlighted ? 'bg-[#0A246A] text-white' : 'text-black hover:bg-[#d4d0c8]'
                   }`}
                   onClick={() => handleItemClick(item)}
                 >
@@ -450,12 +459,12 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
                   </div>
                   
                   {item.hasSubmenu && (
-                    <ChevronRight size={14} className={isHighlighted || isSubmenuActive ? 'text-white' : 'text-gray-500'} />
+                    <ChevronRight size={14} className={isHighlighted ? 'text-white' : 'text-gray-500'} />
                   )}
                 </button>
                 
                 {/* Submenu */}
-                {item.hasSubmenu && isSubmenuActive && (
+                {item.hasSubmenu && activeSubmenu === item.id && (
                   <SubmenuPanel
                     items={getSubmenuItems(item.id)}
                     position={getSubmenuPosition(item.id)}
@@ -506,8 +515,16 @@ const SubmenuPanel = ({
       style={{
         ...submenuStyles[position],
         borderColor: theme ? `#${theme.borderColor}` : '#a0a0a0',
+        animation: 'fadeIn 0.1s ease-in-out',
       }}
     >
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateX(-5px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
+      
       {items.map((item, index) => {
         if (item.type === 'divider') {
           return (
@@ -540,17 +557,6 @@ const SubmenuPanel = ({
                 <ChevronRight size={14} className="text-gray-500" />
               )}
             </button>
-            
-            {/* Nested submenu (if any) */}
-            {item.hasSubmenu && item.id === parentItem.activeSubmenu && (
-              <SubmenuPanel
-                items={item.submenuItems}
-                position="right"
-                onItemClick={onItemClick}
-                onItemHover={onItemHover}
-                theme={theme}
-              />
-            )}
           </div>
         );
       })}

@@ -3,15 +3,22 @@
 /**
  * Window State Manager - Handles saving and restoring window positions, sizes, and states
  * 
- * This manager handles:
+ * This utility handles:
  * - Saving window positions and sizes
  * - Restoring windows from local storage
  * - Handling default placement for new windows
  * - Enforcing display constraints
+ * - Maintaining window z-index ordering
+ * - Grid snapping and window alignment
  */
 
 // Local storage key for window states
 const WINDOW_STATES_KEY = 'win2kWindowStates';
+
+// Grid snapping settings
+const GRID_SIZE = 10; // Grid cell size in pixels
+const SNAP_THRESHOLD = 15; // Distance in pixels to snap to grid
+const SCREEN_EDGE_SNAP = 20; // Distance to snap to screen edges
 
 /**
  * Save the state of all open windows
@@ -169,6 +176,72 @@ export const constrainWindowToDesktop = (position, size, desktopSize) => {
 };
 
 /**
+ * Snap window position to grid or screen edges
+ * @param {Object} position - Window position {x, y}
+ * @param {Object} size - Window size {width, height}
+ * @param {Object} desktopSize - Desktop dimensions {width, height}
+ * @returns {Object} Snapped position
+ */
+export const snapWindowPosition = (position, size, desktopSize) => {
+  let { x, y } = position;
+  const { width, height } = size;
+  
+  // Check for screen edge snapping - left edge
+  if (Math.abs(x) < SCREEN_EDGE_SNAP) {
+    x = 0;
+  }
+  
+  // Right edge
+  if (Math.abs(x + width - desktopSize.width) < SCREEN_EDGE_SNAP) {
+    x = desktopSize.width - width;
+  }
+  
+  // Top edge
+  if (Math.abs(y) < SCREEN_EDGE_SNAP) {
+    y = 0;
+  }
+  
+  // Bottom edge
+  if (Math.abs(y + height - desktopSize.height) < SCREEN_EDGE_SNAP) {
+    y = desktopSize.height - height;
+  }
+  
+  // Grid snapping
+  if (x % GRID_SIZE < SNAP_THRESHOLD) {
+    x = Math.floor(x / GRID_SIZE) * GRID_SIZE;
+  } else if (x % GRID_SIZE > GRID_SIZE - SNAP_THRESHOLD) {
+    x = Math.ceil(x / GRID_SIZE) * GRID_SIZE;
+  }
+  
+  if (y % GRID_SIZE < SNAP_THRESHOLD) {
+    y = Math.floor(y / GRID_SIZE) * GRID_SIZE;
+  } else if (y % GRID_SIZE > GRID_SIZE - SNAP_THRESHOLD) {
+    y = Math.ceil(y / GRID_SIZE) * GRID_SIZE;
+  }
+  
+  return { x, y };
+};
+
+/**
+ * Get a new z-index value that's higher than all existing windows
+ * @param {Array} windows - Currently open windows
+ * @returns {number} New z-index value
+ */
+export const getTopZIndex = (windows) => {
+  if (!windows || windows.length === 0) {
+    return 1000; // Base z-index
+  }
+  
+  // Find the highest z-index
+  const highestZ = windows.reduce((highest, window) => {
+    const windowZ = window.zIndex || 0;
+    return windowZ > highest ? windowZ : highest;
+  }, 0);
+  
+  return highestZ + 1;
+};
+
+/**
  * Get default window sizes for different component types
  * @param {string} componentType - Type of window component
  * @param {Object} desktopSize - Desktop dimensions {width, height}
@@ -177,6 +250,7 @@ export const constrainWindowToDesktop = (position, size, desktopSize) => {
 export const getDefaultWindowSize = (componentType, desktopSize) => {
   // Default sizes for various window types
   const defaultSizes = {
+    'HomePage': { width: 800, height: 600 },
     'ExplorePage': { width: 900, height: 600 },
     'RequestsPage': { width: 800, height: 600 },
     'MessagesPage': { width: 700, height: 500 },
@@ -187,6 +261,9 @@ export const getDefaultWindowSize = (componentType, desktopSize) => {
     'Email': { width: 800, height: 600 },
     'Calculator': { width: 300, height: 400 },
     'Notepad': { width: 600, height: 500 },
+    'ControlPanel': { width: 700, height: 500 },
+    'HelpPage': { width: 600, height: 500 },
+    'CommandPrompt': { width: 650, height: 400 },
     // Default size if not specified
     'default': { width: 800, height: 600 }
   };
@@ -201,6 +278,21 @@ export const getDefaultWindowSize = (componentType, desktopSize) => {
   return size;
 };
 
+/**
+ * Calculate window transition animation properties
+ * @param {Object} from - Starting position and size {position: {x, y}, size: {width, height}}
+ * @param {Object} to - Ending position and size {position: {x, y}, size: {width, height}}
+ * @returns {Object} Animation parameters
+ */
+export const calculateTransition = (from, to) => {
+  return {
+    duration: 200, // Animation duration in milliseconds
+    from,
+    to,
+    easing: 'cubic-bezier(0.25, 0.1, 0.25, 1.0)' // Standard ease-out curve
+  };
+};
+
 // Export all functions
 export default {
   saveWindowStates,
@@ -210,5 +302,8 @@ export default {
   cleanupWindowStates,
   getNewWindowPosition,
   constrainWindowToDesktop,
-  getDefaultWindowSize
+  snapWindowPosition,
+  getTopZIndex,
+  getDefaultWindowSize,
+  calculateTransition
 };
