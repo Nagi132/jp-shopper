@@ -9,7 +9,9 @@ import FavoritesPage from './FavoritesPage';
 import NotificationsPage from './NotificationsPage';
 import SettingsPage from './SettingsPage';
 import HelpPage from './HelpPage';
-import RequestDetail from './RequestDetail';
+import RequestDetailPage from './RequestDetailPage';
+import NewRequestPage from './NewRequestPage';
+import ProfilePage from './ProfilePage';
 
 // Export all components for use in the window manager
 export {
@@ -21,5 +23,7 @@ export {
   NotificationsPage,
   SettingsPage,
   HelpPage,
-  RequestDetail
+  RequestDetailPage as RequestDetail, // Alias to match what's expected in WindowManager
+  NewRequestPage,
+  ProfilePage
 };

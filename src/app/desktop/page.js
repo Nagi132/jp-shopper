@@ -1,29 +1,25 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import WindowsDesktop from '@/components/windows/WindowsDesktop';
 import { useApp } from '@/contexts/AppContext';
+import { DialogProvider } from '@/components/windows/MessageBox';
 
-export default function DesktopPage() {
-  const { setDesktopReady, openWindow } = useApp();
-  const searchParams = useSearchParams();
+/**
+ * Desktop page - Primary application interface that shows the 
+ * Windows 2000 desktop experience with taskbar and icons.
+ */
+export default function Desktop() {
+  const { setDesktopReady } = useApp();
   
-  // Notify context when desktop is ready
+  // Initialize desktop
   useEffect(() => {
     setDesktopReady();
-    
-    // Handle initial window based on query params
-    const item = searchParams.get('item');
-    if (item) {
-      openWindow(`request-${item}`, 'RequestDetail', `Request ${item}`);
-    } else {
-      // Default to home window
-      openWindow('home', 'HomePage', 'Home');
-    }
-  }, [setDesktopReady, openWindow, searchParams]);
+  }, [setDesktopReady]);
   
   return (
-    <WindowsDesktop />
+    <DialogProvider>
+      <WindowsDesktop />
+    </DialogProvider>
   );
 }

@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Register() {
@@ -15,7 +14,6 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
-  const [userType, setUserType] = useState('customer');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const router = useRouter();
@@ -73,8 +71,7 @@ export default function Register() {
         options: {
           data: {
             username,
-            full_name: fullName,
-            is_shopper: userType === 'shopper'
+            full_name: fullName
           },
           emailRedirectTo: `${window.location.origin}/auth/confirm`
         }
@@ -92,14 +89,19 @@ export default function Register() {
 
       console.log("Auth successful, user ID:", authData.user.id);
 
-      // 2. Create the user profile with transaction-like approach
+      // 2. Create the unified user profile
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .insert({
           user_id: authData.user.id,
           username,
           full_name: fullName,
-          is_shopper: userType === 'shopper',
+          bio: '',
+          location: '',
+          specialties: [],
+          verification_level: 'pending',
+          rating: 0,
+          languages: ['Japanese', 'English']
         })
         .select();
 
@@ -114,33 +116,7 @@ export default function Register() {
         throw new Error(`Failed to create profile: ${profileError.message}`);
       }
 
-      // 3. If they're a shopper, create the shopper profile
-      if (userType === 'shopper') {
-        const { data: shopperData, error: shopperError } = await supabase
-          .from('shopper_profiles')
-          .insert({
-            user_id: authData.user.id,
-            specialties: [],
-            location: '',
-            bio: '',
-            verification_level: 'pending',
-            rating: 0,
-            languages: ['Japanese'],
-          })
-          .select();
-
-        if (shopperError) {
-          console.error("Shopper profile creation error:", shopperError);
-
-          // Detailed error handling
-          const errorMessage = shopperError.message || 'Failed to create shopper profile';
-          const errorDetails = shopperError.details ? ` (${shopperError.details})` : '';
-
-          throw new Error(`${errorMessage}${errorDetails}`);
-        }
-      }
-
-      // 4. Redirect to dashboard or verification page
+      // 3. Redirect to dashboard or verification page
       if (authData.user.email_confirmed_at) {
         router.push('/dashboard');
       } else {
@@ -208,18 +184,8 @@ export default function Register() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label>I want to join as a:</Label>
-              <RadioGroup value={userType} onValueChange={setUserType} className="flex space-x-4">
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="customer" id="customer" />
-                  <Label htmlFor="customer">Customer</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="shopper" id="shopper" />
-                  <Label htmlFor="shopper">Shopper</Label>
-                </div>
-              </RadioGroup>
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>All users can both buy and sell items on our platform. Complete your profile after signing up to get started!</p>
             </div>
             {error && <p className="text-sm font-medium text-red-500">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>

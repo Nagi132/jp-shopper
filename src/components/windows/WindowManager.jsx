@@ -14,7 +14,9 @@ import {
   NotificationsPage,
   SettingsPage,
   HelpPage,
-  RequestDetail
+  RequestDetail,
+  NewRequestPage,
+  ProfilePage
 } from './WindowContents';
 
 /**
@@ -33,7 +35,7 @@ const WindowManager = ({
 }) => {
   // Create refs for each window
   const windowRefs = useRef({});
-  
+
   // Initialize window refs
   useEffect(() => {
     windows.forEach(window => {
@@ -41,7 +43,7 @@ const WindowManager = ({
         windowRefs.current[window.id] = React.createRef();
       }
     });
-    
+
     // Clean up refs for closed windows
     Object.keys(windowRefs.current).forEach(key => {
       if (!windows.find(w => w.id === key)) {
@@ -49,7 +51,7 @@ const WindowManager = ({
       }
     });
   }, [windows]);
-  
+
   // Get the appropriate component for a window
   const getWindowComponent = (componentName, windowId) => {
     // Regular components
@@ -62,26 +64,28 @@ const WindowManager = ({
       'NotificationsPage': NotificationsPage,
       'SettingsPage': SettingsPage,
       'HelpPage': HelpPage,
+      'NewRequestPage': NewRequestPage,
+      'ProfilePage': ProfilePage,
     };
-    
+
     // Handle special case for RequestDetail
     if (componentName === 'RequestDetail') {
       // Extract ID from windowId (format: request-123)
       const id = windowId.replace('request-', '');
-      return () => <RequestDetail id={id} />;
+      return () => <RequestDetail requestId={id} />;
     }
-    
+
     return componentMap[componentName] || null;
   };
-  
+
   return (
     <div className="window-manager">
       {windows.map((window) => {
         if (window.minimized) return null;
-        
+
         // Get the component to render in this window
         const WindowContent = getWindowComponent(window.component, window.id);
-        
+
         return (
           <Window
             key={window.id}

@@ -1,4 +1,3 @@
-// src/contexts/AppContext.jsx
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
@@ -28,7 +27,8 @@ export function AppProvider({ children }) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [windowsLoaded, setWindowsLoaded] = useState(false);
   const desktopRef = useRef(null);
-  
+  const windowsLoadedRef = useRef(false);
+
   // Route mappings for window components
   const routeToWindowMap = {
     '/explore': { id: 'explore', component: 'ExplorePage', title: 'Explore' },
@@ -37,20 +37,279 @@ export function AppProvider({ children }) {
     '/favorites': { id: 'favorites', component: 'FavoritesPage', title: 'Favorites' },
     '/settings': { id: 'settings', component: 'SettingsPage', title: 'Settings' },
     '/notifications': { id: 'notifications', component: 'NotificationsPage', title: 'Notifications' },
-    '/': { id: 'home', component: 'HomePage', title: 'Home' }
+    '/profile': { id: 'profile', component: 'ProfilePage', title: 'Profile' }
   };
 
   // Get the desktop size from the desktop ref
   const updateDesktopSize = () => {
     if (desktopRef.current) {
       const { clientWidth, clientHeight } = desktopRef.current;
-      setDesktopSize({ width: clientWidth, height: clientHeight });
+      // Only update if values actually changed
+      if (clientWidth !== desktopSize.width || clientHeight !== desktopSize.height) {
+        setDesktopSize({ width: clientWidth, height: clientHeight });
+      }
     } else if (typeof window !== 'undefined') {
       // Fallback to window size if desktop ref not available
-      setDesktopSize({ 
-        width: window.innerWidth, 
-        height: window.innerHeight - 40 // Account for taskbar
-      });
+      const width = window.innerWidth;
+      const height = window.innerHeight - 40; // Account for taskbar
+      // Only update if values actually changed
+      if (width !== desktopSize.width || height !== desktopSize.height) {
+        setDesktopSize({ width, height });
+      }
+    }
+  };
+
+  // Set desktop ref
+  const setDesktopElement = (ref) => {
+    desktopRef.current = ref;
+    updateDesktopSize();
+  };
+  
+  // Notify when desktop is ready to handle windows
+  const setDesktopReady = () => {
+    if (!isDesktopReady) {
+      setIsDesktopReady(true);
+      updateDesktopSize();
+    }
+  };
+
+  // Restore minimized window - defined before openWindow since it's used there
+  const restoreWindow = (windowId) => {
+    setOpenWindows(prev =>
+      prev.map(window =>
+        window.id === windowId
+          ? { ...window, minimized: false, zIndex: Date.now() }
+          : window
+      )
+    );
+    setActiveWindow(windowId);
+  };
+
+  // Open window and optionally update URL
+  const openWindow = (appId, appComponent, title, updateUrl = false) => {
+    // Check if window is already open by ID
+    const existingWindow = openWindows.find(w => w.id === appId);
+
+    if (existingWindow) {
+      // Bring to front and focus
+      setActiveWindow(appId);
+
+      // Restore if minimized
+      if (existingWindow.minimized) {
+        restoreWindow(appId);
+      }
+
+      // Update z-index to bring to front
+      setOpenWindows(prev => prev.map(window => ({
+        ...window,
+        zIndex: window.id === appId ? Date.now() : window.zIndex
+      })));
+    } else {
+      // Get default window size for this component type
+      const size = WindowStateManager.getDefaultWindowSize(appComponent, desktopSize);
+
+      // Calculate cascade position for new window
+      const position = WindowStateManager.getNewWindowPosition(openWindows, desktopSize);
+
+      // Create new window
+      const newWindow = {
+        id: appId,
+        title: title || appId.charAt(0).toUpperCase() + appId.slice(1),
+        component: appComponent,
+        minimized: false,
+        isMaximized: false,
+        position,
+        size,
+        zIndex: Date.now() // Use timestamp for z-index to ensure newest window is on top
+      };
+
+      setOpenWindows(prev => [...prev, newWindow]);
+      setActiveWindow(appId);
+    }
+
+    // Update URL if requested and not already on this route
+    if (updateUrl) {
+      // Find the route that matches this window
+      const route = Object.entries(routeToWindowMap).find(([_, info]) =>
+        info.id === appId
+      );
+
+      if (route && route[0] !== pathname) {
+        router.push(route[0]);
+      }
+    }
+  };
+
+  // Minimize window
+  const minimizeWindow = (windowId) => {
+    setOpenWindows(prev =>
+      prev.map(window =>
+        window.id === windowId
+          ? { ...window, minimized: true }
+          : window
+      )
+    );
+
+    // Set active window to the next non-minimized window, or null if none
+    const remainingWindows = openWindows.filter(w => w.id !== windowId && !w.minimized);
+    if (remainingWindows.length > 0) {
+      const nextActive = remainingWindows.reduce((highest, window) => {
+        return window.zIndex > highest.zIndex ? window : highest;
+      }, remainingWindows[0]);
+      setActiveWindow(nextActive.id);
+    } else {
+      setActiveWindow(null);
+    }
+  };
+
+  // Maximize window
+  const maximizeWindow = (windowId) => {
+    // Save current position and size before maximizing
+    const windowToMaximize = openWindows.find(w => w.id === windowId);
+
+    if (windowToMaximize && !windowToMaximize.isMaximized) {
+      // Save the current position and size before maximizing
+      const prevState = {
+        position: { ...windowToMaximize.position },
+        size: { ...windowToMaximize.size }
+      };
+
+      setOpenWindows(prev =>
+        prev.map(window =>
+          window.id === windowId
+            ? {
+              ...window,
+              isMaximized: true,
+              prevState, // Store previous state for restoration
+              position: { x: 0, y: 0 },
+              size: { width: desktopSize.width, height: desktopSize.height }
+            }
+            : window
+        )
+      );
+    }
+  };
+
+  // Restore maximized window
+  const restoreMaximizedWindow = (windowId) => {
+    const windowToRestore = openWindows.find(w => w.id === windowId);
+
+    if (windowToRestore && windowToRestore.isMaximized) {
+      setOpenWindows(prev =>
+        prev.map(window =>
+          window.id === windowId
+            ? {
+              ...window,
+              isMaximized: false,
+              position: window.prevState ? window.prevState.position : window.position,
+              size: window.prevState ? window.prevState.size : window.size,
+              prevState: null
+            }
+            : window
+        )
+      );
+    }
+  };
+
+  // Close window
+  const closeWindow = (windowId) => {
+    // Remove the window from open windows
+    setOpenWindows(prev => prev.filter(window => window.id !== windowId));
+
+    // Update active window
+    if (activeWindow === windowId) {
+      const remainingWindows = openWindows.filter(w => w.id !== windowId && !w.minimized);
+      if (remainingWindows.length > 0) {
+        // Find the window with highest z-index
+        const nextActive = remainingWindows.reduce((highest, window) => {
+          return window.zIndex > highest.zIndex ? window : highest;
+        }, remainingWindows[0]);
+        setActiveWindow(nextActive.id);
+      } else {
+        setActiveWindow(null);
+      }
+    }
+
+    // Clean up saved states for closed windows
+    const currentWindowIds = openWindows
+      .filter(window => window.id !== windowId)
+      .map(window => window.id);
+    WindowStateManager.cleanupWindowStates(currentWindowIds);
+  };
+
+  // Update window position
+  const updateWindowPosition = (windowId, position) => {
+    // Ensure position is within desktop bounds
+    const window = openWindows.find(w => w.id === windowId);
+    if (!window) return;
+
+    const constrainedPosition = WindowStateManager.constrainWindowToDesktop(
+      position,
+      window.size,
+      desktopSize
+    );
+
+    setOpenWindows(prev =>
+      prev.map(window =>
+        window.id === windowId
+          ? { ...window, position: constrainedPosition }
+          : window
+      )
+    );
+  };
+
+  // Update window size
+  const updateWindowSize = (windowId, size) => {
+    setOpenWindows(prev =>
+      prev.map(window =>
+        window.id === windowId
+          ? { ...window, size }
+          : window
+      )
+    );
+  };
+
+  // Check if app routes to desktop environment
+  const shouldUseDesktop = (path) => {
+    // Don't redirect if we're already on the desktop or root page
+    if (path === '/desktop' || path === '/' || path === '') {
+      return false;
+    }
+
+    // Check if user has a preference (could be stored in localStorage)
+    const userPreference = typeof localStorage !== 'undefined'
+      ? localStorage.getItem('preferDesktop')
+      : null;
+
+    if (userPreference !== null) {
+      return userPreference === 'true';
+    }
+
+    // For now, use desktop mode for in-app navigation
+    return true;
+  };
+
+  // Minimize all windows (show desktop)
+  const showDesktop = () => {
+    setOpenWindows(prev =>
+      prev.map(window => ({ ...window, minimized: true }))
+    );
+    setActiveWindow(null);
+  };
+
+  // Restore all windows
+  const restoreAllWindows = () => {
+    setOpenWindows(prev =>
+      prev.map(window => ({ ...window, minimized: false }))
+    );
+
+    // Find the window with highest z-index
+    const topWindow = openWindows.reduce((highest, window) => {
+      return window.zIndex > highest.zIndex ? window : highest;
+    }, openWindows[0]);
+
+    if (topWindow) {
+      setActiveWindow(topWindow.id);
     }
   };
 
@@ -60,7 +319,7 @@ export function AppProvider({ children }) {
       const handleResize = () => {
         updateDesktopSize();
       };
-      
+
       window.addEventListener('resize', handleResize);
       return () => window.removeEventListener('resize', handleResize);
     }
@@ -75,23 +334,24 @@ export function AppProvider({ children }) {
 
   // Load saved window states
   useEffect(() => {
-    if (isDesktopReady && !windowsLoaded) {
+    if (isDesktopReady && !windowsLoaded && !windowsLoadedRef.current) {
+      windowsLoadedRef.current = true;
       const savedWindows = WindowStateManager.loadWindowStates();
-      
+
       if (savedWindows && savedWindows.length > 0) {
         // Restore saved windows
         setOpenWindows(savedWindows);
-        
+
         // Set the last active window as active
         const lastActiveWindow = savedWindows.reduce((active, window) => {
           return window.zIndex > (active?.zIndex || 0) ? window : active;
         }, null);
-        
+
         if (lastActiveWindow) {
           setActiveWindow(lastActiveWindow.id);
         }
       }
-      
+
       setWindowsLoaded(true);
     }
   }, [isDesktopReady, windowsLoaded]);
@@ -100,255 +360,26 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!isDesktopReady || !pathname || !windowsLoaded) return;
 
+    // Skip window creation when on the desktop or root routes
+    if (pathname === '/desktop' || pathname === '/' || pathname === '') return;
+    
+    // Skip for dashboard too (backward compatibility)
+    if (pathname === '/dashboard') return;
+
     // Find matching route
-    const route = Object.entries(routeToWindowMap).find(([route]) => 
+    const route = Object.entries(routeToWindowMap).find(([route]) =>
       pathname === route || pathname.startsWith(`${route}/`)
     );
 
     if (route) {
       const [_, windowInfo] = route;
-      openWindow(windowInfo.id, windowInfo.component, windowInfo.title);
-    }
-  }, [pathname, isDesktopReady, windowsLoaded]);
-
-  // Set desktop ref
-  const setDesktopElement = (ref) => {
-    desktopRef.current = ref;
-    updateDesktopSize();
-  };
-
-  // Open window and optionally update URL
-  const openWindow = (appId, appComponent, title, updateUrl = false) => {
-    // Check if window is already open
-    const existingWindow = openWindows.find(w => w.id === appId);
-    
-    if (existingWindow) {
-      // Bring to front and focus
-      setActiveWindow(appId);
-      
-      // Restore if minimized
-      if (existingWindow.minimized) {
-        restoreWindow(appId);
-      }
-      
-      // Update z-index to bring to front
-      setOpenWindows(prev => prev.map(window => ({
-        ...window,
-        zIndex: window.id === appId ? Date.now() : window.zIndex
-      })));
-    } else {
-      // Get default window size for this component type
-      const size = WindowStateManager.getDefaultWindowSize(appComponent, desktopSize);
-      
-      // Calculate cascade position for new window
-      const position = WindowStateManager.getNewWindowPosition(openWindows, desktopSize);
-      
-      // Create new window
-      const newWindow = {
-        id: appId,
-        title: title || appId.charAt(0).toUpperCase() + appId.slice(1),
-        component: appComponent,
-        minimized: false,
-        isMaximized: false,
-        position,
-        size,
-        zIndex: Date.now() // Use timestamp for z-index to ensure newest window is on top
-      };
-      
-      setOpenWindows(prev => [...prev, newWindow]);
-      setActiveWindow(appId);
-    }
-    
-    // Update URL if requested and not already on this route
-    if (updateUrl) {
-      // Find the route that matches this window
-      const route = Object.entries(routeToWindowMap).find(([_, info]) => 
-        info.id === appId
-      );
-      
-      if (route && route[0] !== pathname) {
-        router.push(route[0]);
+      // Check if window is already open, if not, open it
+      const existingWindow = openWindows.find(w => w.id === windowInfo.id);
+      if (!existingWindow) {
+        openWindow(windowInfo.id, windowInfo.component, windowInfo.title);
       }
     }
-  };
-
-  // Minimize window
-  const minimizeWindow = (windowId) => {
-    setOpenWindows(prev => 
-      prev.map(window => 
-        window.id === windowId 
-          ? { ...window, minimized: true } 
-          : window
-      )
-    );
-    
-    // Set active window to the next non-minimized window, or null if none
-    const remainingWindows = openWindows.filter(w => w.id !== windowId && !w.minimized);
-    if (remainingWindows.length > 0) {
-      const nextActive = remainingWindows.reduce((highest, window) => {
-        return window.zIndex > highest.zIndex ? window : highest;
-      }, remainingWindows[0]);
-      setActiveWindow(nextActive.id);
-    } else {
-      setActiveWindow(null);
-    }
-  };
-
-  // Restore minimized window
-  const restoreWindow = (windowId) => {
-    setOpenWindows(prev => 
-      prev.map(window => 
-        window.id === windowId 
-          ? { ...window, minimized: false, zIndex: Date.now() } 
-          : window
-      )
-    );
-    setActiveWindow(windowId);
-  };
-
-  // Maximize window
-  const maximizeWindow = (windowId) => {
-    // Save current position and size before maximizing
-    const windowToMaximize = openWindows.find(w => w.id === windowId);
-    
-    if (windowToMaximize && !windowToMaximize.isMaximized) {
-      // Save the current position and size before maximizing
-      const prevState = {
-        position: { ...windowToMaximize.position },
-        size: { ...windowToMaximize.size }
-      };
-      
-      setOpenWindows(prev => 
-        prev.map(window => 
-          window.id === windowId 
-            ? { 
-                ...window, 
-                isMaximized: true,
-                prevState, // Store previous state for restoration
-                position: { x: 0, y: 0 },
-                size: { width: desktopSize.width, height: desktopSize.height }
-              } 
-            : window
-        )
-      );
-    }
-  };
-
-  // Restore maximized window
-  const restoreMaximizedWindow = (windowId) => {
-    const windowToRestore = openWindows.find(w => w.id === windowId);
-    
-    if (windowToRestore && windowToRestore.isMaximized) {
-      setOpenWindows(prev => 
-        prev.map(window => 
-          window.id === windowId 
-            ? { 
-                ...window, 
-                isMaximized: false,
-                position: window.prevState ? window.prevState.position : window.position,
-                size: window.prevState ? window.prevState.size : window.size,
-                prevState: null
-              } 
-            : window
-        )
-      );
-    }
-  };
-
-  // Close window
-  const closeWindow = (windowId) => {
-    // Remove the window from open windows
-    setOpenWindows(prev => prev.filter(window => window.id !== windowId));
-    
-    // Update active window
-    if (activeWindow === windowId) {
-      const remainingWindows = openWindows.filter(w => w.id !== windowId && !w.minimized);
-      if (remainingWindows.length > 0) {
-        // Find the window with highest z-index
-        const nextActive = remainingWindows.reduce((highest, window) => {
-          return window.zIndex > highest.zIndex ? window : highest;
-        }, remainingWindows[0]);
-        setActiveWindow(nextActive.id);
-      } else {
-        setActiveWindow(null);
-      }
-    }
-    
-    // Clean up saved states for closed windows
-    const currentWindowIds = openWindows
-      .filter(window => window.id !== windowId)
-      .map(window => window.id);
-    WindowStateManager.cleanupWindowStates(currentWindowIds);
-  };
-
-  // Update window position
-  const updateWindowPosition = (windowId, position) => {
-    // Ensure position is within desktop bounds
-    const window = openWindows.find(w => w.id === windowId);
-    if (!window) return;
-    
-    const constrainedPosition = WindowStateManager.constrainWindowToDesktop(
-      position,
-      window.size,
-      desktopSize
-    );
-    
-    setOpenWindows(prev => 
-      prev.map(window => 
-        window.id === windowId 
-          ? { ...window, position: constrainedPosition } 
-          : window
-      )
-    );
-  };
-
-  // Update window size
-  const updateWindowSize = (windowId, size) => {
-    setOpenWindows(prev => 
-      prev.map(window => 
-        window.id === windowId 
-          ? { ...window, size } 
-          : window
-      )
-    );
-  };
-
-  // Check if app routes to desktop environment
-  const shouldUseDesktop = (path) => {
-    // Logic to determine if route should use desktop
-    // Could be based on user preferences, route patterns, etc.
-    return true; // For now, always use desktop
-  };
-
-  // Minimize all windows (show desktop)
-  const showDesktop = () => {
-    setOpenWindows(prev => 
-      prev.map(window => ({ ...window, minimized: true }))
-    );
-    setActiveWindow(null);
-  };
-
-  // Restore all windows
-  const restoreAllWindows = () => {
-    setOpenWindows(prev => 
-      prev.map(window => ({ ...window, minimized: false }))
-    );
-    
-    // Find the window with highest z-index
-    const topWindow = openWindows.reduce((highest, window) => {
-      return window.zIndex > highest.zIndex ? window : highest;
-    }, openWindows[0]);
-    
-    if (topWindow) {
-      setActiveWindow(topWindow.id);
-    }
-  };
-
-  // Notify when desktop is ready to handle windows
-  const setDesktopReady = () => {
-    setIsDesktopReady(true);
-    updateDesktopSize();
-  };
+  }, [pathname, isDesktopReady, windowsLoaded, openWindows]);
 
   // Create context value
   const contextValue = {
@@ -356,6 +387,7 @@ export function AppProvider({ children }) {
     activeWindow,
     isDesktopReady,
     desktopSize,
+    windowsLoaded,
     setActiveWindow,
     openWindow,
     minimizeWindow,
@@ -371,7 +403,7 @@ export function AppProvider({ children }) {
     setDesktopReady,
     setDesktopElement
   };
-  
+
   return (
     <AppContext.Provider value={contextValue}>
       {children}

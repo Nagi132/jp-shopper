@@ -150,6 +150,7 @@ const StartMenu = ({ onClose, onOpenWindow, theme, username = 'User' }) => {
     { id: 'messages', label: 'Messages', icon: <MessageSquare size={16} />, component: 'MessagesPage' },
     { id: 'favorites', label: 'Favorites', icon: <Heart size={16} />, component: 'FavoritesPage' },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={16} />, component: 'NotificationsPage' },
+    { id: 'profile', label: 'Profile', icon: <User size={16} />, component: 'ProfilePage' },
     
     // Divider
     { type: 'divider' },

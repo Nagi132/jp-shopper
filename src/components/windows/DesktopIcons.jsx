@@ -1,7 +1,7 @@
 // src/components/windows/DesktopIcons.jsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import DesktopIcon from './DesktopIcon';
 
 /**
@@ -9,56 +9,75 @@ import DesktopIcon from './DesktopIcon';
  */
 const DesktopIcons = ({ onOpenWindow, openWindows = [], theme }) => {
   // Desktop icons configuration with positions - now with .svg extension
-  const desktopIcons = [
+  const desktopIcons = useMemo(() => [
     { 
-      id: 'home', 
+      id: 'desktop-home', // Changed to ensure uniqueness
       name: 'Home', 
-      icon: '/icons/home.svg', // Changed from .png to .svg
+      icon: '/icons/home.svg',
       component: 'HomePage',
       position: { x: 20, y: 20 }
     },
     { 
-      id: 'explore', 
+      id: 'desktop-explore', // Changed to ensure uniqueness
       name: 'Explore', 
-      icon: '/icons/explore.svg', // Changed from .png to .svg
+      icon: '/icons/explore.svg',
       component: 'ExplorePage',
       position: { x: 20, y: 100 }
     },
     { 
-      id: 'messages', 
+      id: 'desktop-messages', // Changed to ensure uniqueness
       name: 'Messages', 
-      icon: '/icons/messages.svg', // Changed from .png to .svg
+      icon: '/icons/messages.svg',
       component: 'MessagesPage',
       position: { x: 20, y: 180 }
     },
     { 
-      id: 'requests', 
+      id: 'desktop-requests', // Changed to ensure uniqueness
       name: 'Requests', 
-      icon: '/icons/requests.svg', // Changed from .png to .svg
+      icon: '/icons/requests.svg',
       component: 'RequestsPage',
       position: { x: 20, y: 260 }
     },
     { 
-      id: 'favorites', 
+      id: 'desktop-favorites', // Changed to ensure uniqueness
       name: 'Favorites', 
-      icon: '/icons/favorites.svg', // Changed from .png to .svg
+      icon: '/icons/favorites.svg',
       component: 'FavoritesPage',
       position: { x: 20, y: 340 }
     },
     {
-      id: 'settings',
+      id: 'desktop-settings', // Changed to ensure uniqueness
       name: 'Settings',
-      icon: '/icons/default.svg', // Using default since you don't have settings.svg
+      icon: '/icons/default.svg',
       component: 'SettingsPage',
       position: { x: 20, y: 420 }
+    },
+    {
+      id: 'desktop-profile',
+      name: 'Profile',
+      icon: '/icons/profile.svg',
+      component: 'ProfilePage',
+      position: { x: 20, y: 500 }
     }
-  ];
+  ], []);
   
   // Check if an app is currently open (not minimized)
   const isAppActive = (id) => {
+    // Extract component ID from desktop ID (remove 'desktop-' prefix)
+    const componentId = id.replace('desktop-', '');
+    
     return openWindows.some(window => 
-      window.id === id && !window.minimized
+      (window.id === componentId || window.id === id) && !window.minimized
     );
+  };
+  
+  // Generate a unique window ID when opening a window
+  const handleOpenWindow = (iconId, component, name) => {
+    // Extract the base ID (remove 'desktop-' prefix)
+    const baseId = iconId.replace('desktop-', '');
+    
+    // Call the parent function with the base ID
+    onOpenWindow(baseId, component, name);
   };
   
   return (
@@ -70,7 +89,7 @@ const DesktopIcons = ({ onOpenWindow, openWindows = [], theme }) => {
           name={icon.name}
           icon={icon.icon}
           position={icon.position}
-          onClick={() => onOpenWindow(icon.id, icon.component, icon.name)}
+          onClick={() => handleOpenWindow(icon.id, icon.component, icon.name)}
           isActive={isAppActive(icon.id)}
           theme={theme}
         />

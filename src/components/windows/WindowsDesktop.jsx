@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useTheme } from '@/components/layouts/ThemeProvider';
 import { useApp } from '@/contexts/AppContext';
 import DesktopIcons from './DesktopIcons';
@@ -19,13 +19,21 @@ const WindowsDesktop = ({ children }) => {
     openWindows, 
     activeWindow, 
     setActiveWindow,
-    openWindow,
+    openWindow: contextOpenWindow,
     minimizeWindow,
     restoreWindow, 
-    closeWindow 
+    closeWindow,
+    setDesktopElement
   } = useApp();
   const [showStartMenu, setShowStartMenu] = useState(false);
   const desktopRef = useRef(null);
+
+  // Set up the desktop reference
+  useEffect(() => {
+    if (desktopRef.current) {
+      setDesktopElement(desktopRef.current);
+    }
+  }, [desktopRef, setDesktopElement]);
 
   // Handle clicking the Start button
   const handleStartClick = () => {
@@ -34,7 +42,7 @@ const WindowsDesktop = ({ children }) => {
 
   // Handle clicking outside to close the start menu
   const handleOutsideClick = (e) => {
-    if (showStartMenu && !e.target.closest('.start-menu') && !e.target.closest('.start-button')) {
+    if (e.target === desktopRef.current) {
       setShowStartMenu(false);
     }
   };
@@ -42,10 +50,29 @@ const WindowsDesktop = ({ children }) => {
   // Calculate desktop color based on theme
   const getDesktopColor = () => {
     return {
+      backgroundColor: `#${theme.bgColor}`,
       backgroundImage: `linear-gradient(135deg, #${theme.bgColor}40, #${theme.borderColor}20)`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     };
+  };
+
+  // Safe version of openWindow that checks for duplicates
+  const safeOpenWindow = (id, component, title) => {
+    // Check if window already exists
+    const existingWindow = openWindows.find(w => w.id === id);
+    
+    if (existingWindow) {
+      // If it exists, just focus it instead of creating a new one
+      setActiveWindow(id);
+      
+      if (existingWindow.minimized) {
+        restoreWindow(id);
+      }
+    } else {
+      // If it doesn't exist, open a new window
+      contextOpenWindow(id, component, title);
+    }
   };
 
   return (
@@ -58,7 +85,7 @@ const WindowsDesktop = ({ children }) => {
       >
         {/* Desktop Icons */}
         <DesktopIcons
-          onOpenWindow={openWindow}
+          onOpenWindow={safeOpenWindow}
           openWindows={openWindows}
           theme={theme}
         />
@@ -80,7 +107,7 @@ const WindowsDesktop = ({ children }) => {
         {showStartMenu && (
           <StartMenu 
             onClose={() => setShowStartMenu(false)}
-            onOpenWindow={openWindow}
+            onOpenWindow={safeOpenWindow}
             theme={theme}
           />
         )}

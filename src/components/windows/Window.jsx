@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Minus, Square } from 'lucide-react';
 
 /**
  * Window - A Windows 2000 style window component
- * Uses WinBox.js inspired design for drag, resize, minimize, maximize
  */
-const Window = forwardRef(({
+const Window = React.forwardRef(({
   id,
   title,
   position = { x: 100, y: 100 },
@@ -33,13 +32,45 @@ const Window = forwardRef(({
   const windowRef = useRef(null);
   const desktopRef = useRef(null);
   
-  // Track desktop boundaries
+  // Track desktop boundaries safely
   useEffect(() => {
-    // Find the desktop element (parent of window elements)
-    const desktop = document.querySelector('.window-manager').parentElement;
-    if (desktop) {
-      desktopRef.current = desktop;
-    }
+    // Find the desktop element safely
+    const findDesktopElement = () => {
+      try {
+        const windowManager = document.querySelector('.window-manager');
+        if (windowManager && windowManager.parentElement) {
+          desktopRef.current = windowManager.parentElement;
+        } else {
+          // Fallback to use window dimensions if we can't find the desktop
+          desktopRef.current = {
+            getBoundingClientRect: () => ({
+              width: window.innerWidth,
+              height: window.innerHeight - 40 // Subtract taskbar height
+            })
+          };
+        }
+      } catch (err) {
+        console.error('Error finding desktop element:', err);
+        // Fallback
+        desktopRef.current = {
+          getBoundingClientRect: () => ({
+            width: window.innerWidth,
+            height: window.innerHeight - 40
+          })
+        };
+      }
+    };
+    
+    findDesktopElement();
+    
+    // Add resize listener to update desktop size
+    const handleResize = () => {
+      findDesktopElement();
+      constrainToDesktop();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
   
   // Function to calculate text color from background
@@ -59,78 +90,82 @@ const Window = forwardRef(({
   // Handle initial focus when mounted
   useEffect(() => {
     if (isActive) {
-      onFocus();
+      onFocus?.();
     }
     
     // Ensure window is within desktop bounds on mount
     if (windowRef.current && desktopRef.current) {
       constrainToDesktop();
     }
-  }, []);
+  }, [isActive, onFocus]);
   
   // Constrain window to desktop boundaries
   const constrainToDesktop = () => {
     if (!desktopRef.current || !windowRef.current) return;
     
-    const desktop = desktopRef.current.getBoundingClientRect();
-    const window = windowRef.current.getBoundingClientRect();
-    
-    // Calculate desktop boundaries relative to its parent
-    const desktopBounds = {
-      left: 0,
-      top: 0,
-      right: desktop.width - 10, // Add small margin
-      bottom: desktop.height - 40, // Account for taskbar
-    };
-    
-    let newX = windowPosition.x;
-    let newY = windowPosition.y;
-    
-    // Constrain right edge
-    if (newX + window.width > desktopBounds.right) {
-      newX = desktopBounds.right - window.width;
-    }
-    
-    // Constrain bottom edge
-    if (newY + window.height > desktopBounds.bottom) {
-      newY = desktopBounds.bottom - window.height;
-    }
-    
-    // Constrain left edge
-    if (newX < desktopBounds.left) {
-      newX = desktopBounds.left;
-    }
-    
-    // Constrain top edge
-    if (newY < desktopBounds.top) {
-      newY = desktopBounds.top;
-    }
-    
-    // Make sure title bar is always accessible (at least 30px visible)
-    if (newY < desktopBounds.top - window.height + 30) {
-      newY = desktopBounds.top - window.height + 30;
-    }
-    
-    // Update position if it changed
-    if (newX !== windowPosition.x || newY !== windowPosition.y) {
-      setWindowPosition({ x: newX, y: newY });
+    try {
+      const desktop = desktopRef.current.getBoundingClientRect();
+      const window = windowRef.current.getBoundingClientRect();
+      
+      // Calculate desktop boundaries relative to its parent
+      const desktopBounds = {
+        left: 0,
+        top: 0,
+        right: desktop.width - 10, // Add small margin
+        bottom: desktop.height - 40, // Account for taskbar
+      };
+      
+      let newX = windowPosition.x;
+      let newY = windowPosition.y;
+      
+      // Constrain right edge
+      if (newX + window.width > desktopBounds.right) {
+        newX = desktopBounds.right - window.width;
+      }
+      
+      // Constrain bottom edge
+      if (newY + window.height > desktopBounds.bottom) {
+        newY = desktopBounds.bottom - window.height;
+      }
+      
+      // Constrain left edge
+      if (newX < desktopBounds.left) {
+        newX = desktopBounds.left;
+      }
+      
+      // Constrain top edge
+      if (newY < desktopBounds.top) {
+        newY = desktopBounds.top;
+      }
+      
+      // Make sure title bar is always accessible (at least 30px visible)
+      if (newY < desktopBounds.top - window.height + 30) {
+        newY = desktopBounds.top - window.height + 30;
+      }
+      
+      // Update position if it changed
+      if (newX !== windowPosition.x || newY !== windowPosition.y) {
+        setWindowPosition({ x: newX, y: newY });
+      }
+    } catch (err) {
+      console.error('Error constraining window:', err);
     }
   };
   
   // Expose window control methods to parent via ref
-  useImperativeHandle(ref, () => ({
-    minimize: () => onMinimize(),
+  React.useImperativeHandle(ref, () => ({
+    minimize: () => onMinimize?.(),
     maximize: () => handleMaximize(),
     restore: () => setIsMaximized(false),
-    focus: () => onFocus(),
-    close: () => onClose()
+    focus: () => onFocus?.(),
+    close: () => onClose?.()
   }));
   
   // Handle click to focus
   const handleWindowClick = (e) => {
     // Prevent refocusing if clicking a button
     if (!e.target.closest('.window-control')) {
-      onFocus();
+      onFocus?.();
     }
   };
   
@@ -193,63 +228,67 @@ const Window = forwardRef(({
   const handleResize = (e) => {
     if (!isResizing || !desktopRef.current) return;
     
-    const minWidth = 200;
-    const minHeight = 150;
-    const desktop = desktopRef.current.getBoundingClientRect();
-    
-    let newWidth = windowSize.width;
-    let newHeight = windowSize.height;
-    let newX = windowPosition.x;
-    let newY = windowPosition.y;
-    
-    // Handle different resize directions
-    if (resizeDirection.includes('e')) {
-      // East (right)
-      newWidth = Math.max(minWidth, e.clientX - windowPosition.x);
-      // Constrain to desktop
-      if (windowPosition.x + newWidth > desktop.width) {
-        newWidth = desktop.width - windowPosition.x;
+    try {
+      const minWidth = 200;
+      const minHeight = 150;
+      const desktop = desktopRef.current.getBoundingClientRect();
+      
+      let newWidth = windowSize.width;
+      let newHeight = windowSize.height;
+      let newX = windowPosition.x;
+      let newY = windowPosition.y;
+      
+      // Handle different resize directions
+      if (resizeDirection.includes('e')) {
+        // East (right)
+        newWidth = Math.max(minWidth, e.clientX - windowPosition.x);
+        // Constrain to desktop
+        if (windowPosition.x + newWidth > desktop.width) {
+          newWidth = desktop.width - windowPosition.x;
+        }
       }
-    }
-    
-    if (resizeDirection.includes('w')) {
-      // West (left)
-      const deltaX = e.clientX - windowPosition.x;
-      newWidth = Math.max(minWidth, windowSize.width - deltaX);
-      newX = windowPosition.x + deltaX;
-      // Constrain to desktop
-      if (newX < 0) {
-        newX = 0;
-        newWidth = windowPosition.x + windowSize.width;
+      
+      if (resizeDirection.includes('w')) {
+        // West (left)
+        const deltaX = e.clientX - windowPosition.x;
+        newWidth = Math.max(minWidth, windowSize.width - deltaX);
+        newX = windowPosition.x + deltaX;
+        // Constrain to desktop
+        if (newX < 0) {
+          newX = 0;
+          newWidth = windowPosition.x + windowSize.width;
+        }
       }
-    }
-    
-    if (resizeDirection.includes('s')) {
-      // South (bottom)
-      newHeight = Math.max(minHeight, e.clientY - windowPosition.y);
-      // Constrain to desktop including taskbar
-      if (windowPosition.y + newHeight > desktop.height - 40) {
-        newHeight = desktop.height - 40 - windowPosition.y;
+      
+      if (resizeDirection.includes('s')) {
+        // South (bottom)
+        newHeight = Math.max(minHeight, e.clientY - windowPosition.y);
+        // Constrain to desktop including taskbar
+        if (windowPosition.y + newHeight > desktop.height - 40) {
+          newHeight = desktop.height - 40 - windowPosition.y;
+        }
       }
-    }
-    
-    if (resizeDirection.includes('n')) {
-      // North (top)
-      const deltaY = e.clientY - windowPosition.y;
-      newHeight = Math.max(minHeight, windowSize.height - deltaY);
-      newY = windowPosition.y + deltaY;
-      // Constrain to desktop
-      if (newY < 0) {
-        newY = 0;
-        newHeight = windowPosition.y + windowSize.height;
+      
+      if (resizeDirection.includes('n')) {
+        // North (top)
+        const deltaY = e.clientY - windowPosition.y;
+        newHeight = Math.max(minHeight, windowSize.height - deltaY);
+        newY = windowPosition.y + deltaY;
+        // Constrain to desktop
+        if (newY < 0) {
+          newY = 0;
+          newHeight = windowPosition.y + windowSize.height;
+        }
       }
-    }
-    
-    setWindowSize({ width: newWidth, height: newHeight });
-    setWindowPosition({ x: newX, y: newY });
-    
-    if (onResize) {
-      onResize({ width: newWidth, height: newHeight });
+      
+      setWindowSize({ width: newWidth, height: newHeight });
+      setWindowPosition({ x: newX, y: newY });
+      
+      if (onResize) {
+        onResize({ width: newWidth, height: newHeight });
+      }
+    } catch (err) {
+      console.error('Error resizing window:', err);
     }
   };
   
@@ -304,7 +343,7 @@ const Window = forwardRef(({
         transition: 'box-shadow 0.1s',
         overflow: 'hidden',
         borderRadius: '3px',
-        border: `1px solid #${theme.borderColor}`,
+        border: `1px solid #${theme?.borderColor || '69EFD7'}`,
         maxWidth: '100%'
       }}
       onClick={handleWindowClick}
@@ -314,8 +353,12 @@ const Window = forwardRef(({
       <div 
         className="window-titlebar h-8 flex items-center justify-between px-2 select-none cursor-move"
         style={{ 
-          backgroundColor: isActive ? `#${theme.borderColor}` : `#${theme.borderColor}80`,
-          color: isActive ? `#${getContrastText(theme.borderColor)}` : '#000000',
+          backgroundColor: isActive 
+            ? `#${theme?.borderColor || '69EFD7'}` 
+            : `#${theme?.borderColor || '69EFD7'}80`,
+          color: isActive 
+            ? `#${getContrastText(theme?.borderColor || '69EFD7')}` 
+            : '#000000',
         }}
       >
         {/* Title */}
@@ -329,7 +372,7 @@ const Window = forwardRef(({
             className="window-control w-5 h-5 flex items-center justify-center hover:bg-white hover:bg-opacity-20 focus:outline-none"
             onClick={(e) => {
               e.stopPropagation();
-              onMinimize();
+              onMinimize?.();
             }}
             aria-label="Minimize"
           >
@@ -351,7 +394,7 @@ const Window = forwardRef(({
             className="window-control w-5 h-5 flex items-center justify-center hover:bg-red-500 focus:outline-none"
             onClick={(e) => {
               e.stopPropagation();
-              onClose();
+              onClose?.();
             }}
             aria-label="Close"
           >
@@ -364,8 +407,8 @@ const Window = forwardRef(({
       <div 
         className="window-content h-[calc(100%-32px)] overflow-auto"
         style={{ 
-          backgroundColor: `#${theme.bgColor}`,
-          color: `#${getContrastText(theme.bgColor)}`,
+          backgroundColor: `#${theme?.bgColor || 'FED1EB'}`,
+          color: `#${getContrastText(theme?.bgColor || 'FED1EB')}`,
         }}
       >
         {children}

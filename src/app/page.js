@@ -1,19 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import LandingPage from '@/components/landing/LandingPage';
-import ExplorePage from '@/components/explore/ExplorePage';
+import { DialogProvider } from '@/components/windows/MessageBox';
+import LandingPage from '@/components/windows/LandingPage';
 
 export default function RootPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const checkSession = async () => {
       try {
         const { data } = await supabase.auth.getUser();
         setUser(data.user);
+        
+        if (data.user) {
+          // If user is logged in, redirect to desktop
+          router.replace('/desktop');
+        }
+        
         setLoading(false);
       } catch (error) {
         console.error('Auth error:', error);
@@ -22,7 +30,7 @@ export default function RootPage() {
     };
     
     checkSession();
-  }, []);
+  }, [router]);
 
   if (loading) {
     return (
@@ -33,11 +41,14 @@ export default function RootPage() {
     );
   }
 
-  // If user is logged in, show the Explore page
-  if (user) {
-    return <ExplorePage user={user} />;
-  }
-
-  // Otherwise, show the landing page
-  return <LandingPage />;
+  // If not logged in, show the landing page
+  return (
+    <DialogProvider>
+      <div className="h-screen w-screen" style={{ 
+        backgroundImage: 'linear-gradient(135deg, rgba(105, 239, 215, 0.1), rgba(254, 209, 235, 0.1))' 
+      }}>
+        <LandingPage />
+      </div>
+    </DialogProvider>
+  );
 }
