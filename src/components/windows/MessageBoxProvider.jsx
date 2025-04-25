@@ -133,7 +133,7 @@ function MessageBox({ box, onClose }) {
           <div className="flex justify-end space-x-2 mt-6">
             {buttons.map((buttonText, index) => (
               <Button
-                key={index}
+                key={`${box.id}-button-${index}`}
                 ref={buttonRefs[index]}
                 variant="outline"
                 className="min-w-24 focus:ring-2 focus:ring-offset-1"

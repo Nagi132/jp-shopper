@@ -49,9 +49,11 @@ const WindowsDesktop = ({ children }) => {
 
   // Calculate desktop color based on theme
   const getDesktopColor = () => {
+    // Use truly transparent background to let the body background show through
     return {
-      backgroundColor: `#${theme.bgColor}`,
-      backgroundImage: `linear-gradient(135deg, #${theme.bgColor}40, #${theme.borderColor}20)`,
+      // Remove ALL background settings to ensure transparency
+      backgroundColor: 'transparent',
+      backgroundImage: 'none',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     };
@@ -81,8 +83,24 @@ const WindowsDesktop = ({ children }) => {
       <div 
         ref={desktopRef}
         className="flex-1 relative overflow-hidden"
-        style={getDesktopColor()}
+        style={{
+          ...getDesktopColor(),
+          // Explicitly ensure no background properties from CSS classes
+          background: 'transparent',
+        }}
       >
+        {/* Background overlay with theme color and adjustable opacity - only show when opacity > 0 */}
+        {(theme.desktopOpacity !== undefined && theme.desktopOpacity > 0) && (
+          <div 
+            className="absolute inset-0 pointer-events-none" 
+            style={{
+              backgroundColor: `#${theme.bgColor}`,
+              opacity: theme.desktopOpacity,
+              mixBlendMode: 'multiply'
+            }}
+          />
+        )}
+        
         {/* Desktop Icons */}
         <DesktopIcons
           onOpenWindow={safeOpenWindow}

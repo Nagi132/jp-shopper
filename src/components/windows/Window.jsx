@@ -316,6 +316,26 @@ const Window = React.forwardRef(({
     }
   };
   
+  // Handle double-click on title bar to maximize/restore
+  const handleTitleBarDoubleClick = (e) => {
+    // Only handle double-click if it's on the title bar and not on the controls
+    if (e.target.closest('.window-titlebar') && !e.target.closest('.window-control')) {
+      handleMaximize();
+    }
+  };
+  
+  // Handle minimize button click
+  const handleMinimize = (e) => {
+    e?.stopPropagation();
+    onMinimize?.();
+  };
+  
+  // Handle close button click
+  const handleClose = (e) => {
+    e?.stopPropagation();
+    onClose?.();
+  };
+  
   // Add global event listeners for drag and resize
   useEffect(() => {
     if (isDragging || isResizing) {
@@ -332,89 +352,87 @@ const Window = React.forwardRef(({
   return (
     <div
       ref={windowRef}
-      className="absolute"
+      className={`absolute overflow-hidden shadow-lg ${isActive ? 'z-10' : 'z-0'} ${
+        isMaximized ? 'fixed inset-0' : ''
+      }`}
       style={{
-        left: windowPosition.x,
-        top: windowPosition.y,
-        width: windowSize.width,
-        height: windowSize.height,
-        boxShadow: isActive ? '0 0 10px rgba(0,0,0,0.3)' : '0 0 5px rgba(0,0,0,0.2)',
-        zIndex: isActive ? 999 : 998,
-        transition: 'box-shadow 0.1s',
-        overflow: 'hidden',
-        borderRadius: '3px',
-        border: `1px solid #${theme?.borderColor || '69EFD7'}`,
-        maxWidth: '100%'
+        left: isMaximized ? 0 : windowPosition.x,
+        top: isMaximized ? 0 : windowPosition.y,
+        width: isMaximized ? '100%' : windowSize.width,
+        height: isMaximized ? '100%' : windowSize.height,
+        border: `2px solid #${theme?.borderColor || '0A246A'}`,
+        backgroundColor: `#${theme?.bgColor || 'ECE9D8'}`,
+        transition: isDragging || isResizing ? 'none' : 'box-shadow 0.2s',
+        boxShadow: isActive ? '0 8px 16px rgba(0, 0, 0, 0.15)' : 'none'
       }}
-      onClick={handleWindowClick}
-      onMouseDown={handleMouseDown}
+      onMouseDown={handleWindowClick}
     >
-      {/* Window Title Bar */}
+      {/* Title bar */}
       <div 
-        className="window-titlebar h-8 flex items-center justify-between px-2 select-none cursor-move"
+        className="window-titlebar flex items-center justify-between h-8 px-2 select-none cursor-move"
         style={{ 
-          backgroundColor: isActive 
-            ? `#${theme?.borderColor || '69EFD7'}` 
-            : `#${theme?.borderColor || '69EFD7'}80`,
-          color: isActive 
-            ? `#${getContrastText(theme?.borderColor || '69EFD7')}` 
-            : '#000000',
+          backgroundColor: `#${theme?.titleBarColor || '0A246A'}`,
+          color: `#${theme?.titleTextColor || 'FFFFFF'}`
         }}
+        onMouseDown={handleMouseDown}
+        onDoubleClick={handleTitleBarDoubleClick}
       >
-        {/* Title */}
-        <div className="window-title font-semibold truncate">
-          {title}
-        </div>
-        
-        {/* Window Controls */}
-        <div className="window-controls flex space-x-1">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="flex space-x-1">
           <button
-            className="window-control w-5 h-5 flex items-center justify-center hover:bg-white hover:bg-opacity-20 focus:outline-none"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMinimize?.();
+            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none"
+            style={{
+              backgroundColor: `#${theme?.buttonBgColor || 'D4D0C8'}`,
+              borderColor: '#888888',
+              color: '#000000',
+              boxShadow: '2px 2px 0 #FFFFFF inset, -2px -2px 0 #808080 inset'
             }}
-            aria-label="Minimize"
+            onClick={handleMinimize}
+            title="Minimize"
           >
             <Minus size={12} />
           </button>
-          
           <button
-            className="window-control w-5 h-5 flex items-center justify-center hover:bg-white hover:bg-opacity-20 focus:outline-none"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleMaximize();
+            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none"
+            style={{
+              backgroundColor: `#${theme?.buttonBgColor || 'D4D0C8'}`,
+              borderColor: '#888888',
+              color: '#000000',
+              boxShadow: '2px 2px 0 #FFFFFF inset, -2px -2px 0 #808080 inset'
             }}
-            aria-label="Maximize"
+            onClick={handleMaximize}
+            title={isMaximized ? "Restore" : "Maximize"}
           >
-            <Square size={10} />
+            <Square size={12} />
           </button>
-          
           <button
-            className="window-control w-5 h-5 flex items-center justify-center hover:bg-red-500 focus:outline-none"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose?.();
+            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none"
+            style={{
+              backgroundColor: `#${theme?.buttonBgColor || 'D4D0C8'}`,
+              borderColor: '#888888',
+              color: '#000000',
+              boxShadow: '2px 2px 0 #FFFFFF inset, -2px -2px 0 #808080 inset'
             }}
-            aria-label="Close"
+            onClick={handleClose}
+            title="Close"
           >
             <X size={12} />
           </button>
         </div>
       </div>
       
-      {/* Window Content */}
+      {/* Window content */}
       <div 
-        className="window-content h-[calc(100%-32px)] overflow-auto"
+        className="window-content overflow-auto"
         style={{ 
-          backgroundColor: `#${theme?.bgColor || 'FED1EB'}`,
-          color: `#${getContrastText(theme?.bgColor || 'FED1EB')}`,
+          height: 'calc(100% - 2rem)',
+          backgroundColor: `#${theme?.bgColor || 'ECE9D8'}`
         }}
       >
         {children}
       </div>
       
-      {/* Resize handles - only when not maximized */}
+      {/* Resize handles - only shown when not maximized */}
       {!isMaximized && (
         <>
           <div 

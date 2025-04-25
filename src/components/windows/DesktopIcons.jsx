@@ -48,7 +48,7 @@ const DesktopIcons = ({ onOpenWindow, openWindows = [], theme }) => {
     {
       id: 'desktop-settings', // Changed to ensure uniqueness
       name: 'Settings',
-      icon: '/icons/default.svg',
+      icon: '/icons/settings.svg',
       component: 'SettingsPage',
       position: { x: 20, y: 420 }
     },

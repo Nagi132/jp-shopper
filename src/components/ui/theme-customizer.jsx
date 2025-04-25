@@ -74,6 +74,35 @@ const BG_PATTERNS = [
   }
 ];
 
+// Mouse cursor icons
+const MOUSE_ICONS = [
+  {
+    name: "Bag",
+    value: "bag",
+    id: "bag"
+  },
+  {
+    name: "Star",
+    value: "star",
+    id: "star"
+  },
+  {
+    name: "Heart",
+    value: "heart",
+    id: "heart"
+  },
+  {
+    name: "Circle",
+    value: "circle",
+    id: "circle"
+  },
+  {
+    name: "None",
+    value: "none",
+    id: "none"
+  }
+];
+
 /**
  * ThemeCustomizer - A component that allows users to customize the Y2K theme
  * 
@@ -84,6 +113,7 @@ const ThemeCustomizer = ({ onThemeChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState(THEMES[0]);
   const [currentPattern, setCurrentPattern] = useState(BG_PATTERNS[0]);
+  const [currentMouseIcon, setCurrentMouseIcon] = useState(MOUSE_ICONS[0]);
   
   // Load saved theme on component mount
   useEffect(() => {
@@ -100,8 +130,13 @@ const ThemeCustomizer = ({ onThemeChange }) => {
           p.value === theme.pattern
         ) || BG_PATTERNS[0];
         
+        const matchedMouseIcon = MOUSE_ICONS.find(m =>
+          m.value === theme.mouseIcon
+        ) || MOUSE_ICONS[0];
+        
         setCurrentTheme(matchedTheme);
         setCurrentPattern(matchedPattern);
+        setCurrentMouseIcon(matchedMouseIcon);
         
         // Update body background if pattern exists
         if (theme.pattern && theme.pattern !== 'none') {
@@ -114,23 +149,30 @@ const ThemeCustomizer = ({ onThemeChange }) => {
   }, []);
 
   // Apply theme changes
-  const applyTheme = (theme, pattern) => {
+  const applyTheme = (theme, pattern, mouseIcon) => {
+    // Use current values if not provided
+    const newTheme = theme || currentTheme;
+    const newPattern = pattern || currentPattern;
+    const newMouseIcon = mouseIcon || currentMouseIcon;
+    
     // Save to state
-    setCurrentTheme(theme);
-    setCurrentPattern(pattern);
+    setCurrentTheme(newTheme);
+    setCurrentPattern(newPattern);
+    setCurrentMouseIcon(newMouseIcon);
     
     // Apply background pattern if needed
-    if (pattern.value !== 'none') {
-      document.body.style.backgroundImage = pattern.value;
+    if (newPattern.value !== 'none') {
+      document.body.style.backgroundImage = newPattern.value;
     } else {
       document.body.style.backgroundImage = '';
     }
     
     // Create theme object
     const themeObject = {
-      borderColor: theme.borderColor,
-      bgColor: theme.bgColor,
-      pattern: pattern.value
+      borderColor: newTheme.borderColor,
+      bgColor: newTheme.bgColor,
+      pattern: newPattern.value,
+      mouseIcon: newMouseIcon.value
     };
     
     // Save to localStorage
@@ -185,6 +227,49 @@ const ThemeCustomizer = ({ onThemeChange }) => {
       </div>
     </div>
   );
+  
+  // Mouse icon selector component
+  const MouseIconSwatch = ({ mouseIcon, isSelected, onClick }) => (
+    <div 
+      className="flex items-center mb-2 cursor-pointer"
+      onClick={() => onClick(mouseIcon)}
+    >
+      <div className="w-4 h-4 mr-2 rounded-full flex items-center justify-center"
+           style={{ backgroundColor: isSelected ? '#000' : 'transparent' }}>
+        {isSelected && <Check className="w-3 h-3 text-white" />}
+      </div>
+      <div className="flex-1 flex items-center">
+        {mouseIcon.value !== 'none' && (
+          <div className="w-6 h-6 mr-2 border border-gray-300 flex items-center justify-center">
+            {mouseIcon.value === 'bag' && (
+              <svg width="14" height="14" viewBox="0 0 512 512" fill="currentColor">
+                <path d="M356.174,100.174V33.391h-33.391v66.783H189.217V33.391h-33.391v66.783H55.652V512h400.696V100.174H356.174z M422.957,478.609H89.043V133.565h333.913V478.609z"/>
+                <rect x="155.826" y="166.957" width="33.391" height="33.391"/>
+                <rect x="322.783" y="166.957" width="33.391" height="33.391"/>
+                <rect x="189.217" width="133.565" height="33.391"/>
+              </svg>
+            )}
+            {mouseIcon.value === 'star' && (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0L15.708 7.512L24 9.086L18 15.168L19.416 24L12 19.512L4.584 24L6 15.168L0 9.086L8.292 7.512L12 0Z"/>
+              </svg>
+            )}
+            {mouseIcon.value === 'heart' && (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            )}
+            {mouseIcon.value === 'circle' && (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+              </svg>
+            )}
+          </div>
+        )}
+        <span className="text-xs">{mouseIcon.name}</span>
+      </div>
+    </div>
+  );
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -215,20 +300,33 @@ const ThemeCustomizer = ({ onThemeChange }) => {
               key={theme.id}
               theme={theme}
               isSelected={currentTheme.id === theme.id}
-              onClick={(theme) => applyTheme(theme, currentPattern)}
+              onClick={(theme) => applyTheme(theme, null, null)}
             />
           ))}
         </div>
         
         {/* Background Patterns */}
-        <div className="mb-2">
+        <div className="mb-4">
           <h4 className="font-bold text-xs mb-2">Background Patterns</h4>
           {BG_PATTERNS.map(pattern => (
             <PatternSwatch 
               key={pattern.id}
               pattern={pattern}
               isSelected={currentPattern.id === pattern.id}
-              onClick={(pattern) => applyTheme(currentTheme, pattern)}
+              onClick={(pattern) => applyTheme(null, pattern, null)}
+            />
+          ))}
+        </div>
+        
+        {/* Mouse Icons */}
+        <div className="mb-2">
+          <h4 className="font-bold text-xs mb-2">Mouse Cursor</h4>
+          {MOUSE_ICONS.map(mouseIcon => (
+            <MouseIconSwatch 
+              key={mouseIcon.id}
+              mouseIcon={mouseIcon}
+              isSelected={currentMouseIcon.id === mouseIcon.id}
+              onClick={(mouseIcon) => applyTheme(null, null, mouseIcon)}
             />
           ))}
         </div>

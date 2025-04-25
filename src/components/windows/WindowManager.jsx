@@ -3,6 +3,8 @@
 import React, { useEffect, useRef } from 'react';
 import Window from './Window';
 import { useApp } from '@/contexts/AppContext';
+import { MessageBoxProvider } from './MessageBoxProvider';
+import { DialogProvider } from '@/components/windows/MessageBox';
 
 // Import all window content components
 import { 
@@ -101,7 +103,11 @@ const WindowManager = ({
             theme={theme}
           >
             {WindowContent ? (
-              <WindowContent />
+              <DialogProvider>
+                <MessageBoxProvider>
+                  <WindowContent />
+                </MessageBoxProvider>
+              </DialogProvider>
             ) : (
               <div className="flex items-center justify-center h-full">
                 <p>Content for {window.title} not found</p>

@@ -67,6 +67,13 @@ const FavoritesPage = () => {
     { id: 'books', name: 'Books & Manga' }
   ];
   
+  // Add these CSS variables to use with the themed scrollbar
+  const scrollbarStyles = {
+    "--theme-bg-color": `${theme?.bgColor || 'D4D0C8'}`,
+    "--theme-border-color": `${theme?.borderColor || '808080'}`,
+    "--theme-button-bg-color": `${theme?.buttonBgColor || 'D4D0C8'}`
+  };
+  
   // Fetch favorites
   useEffect(() => {
     const fetchFavorites = async () => {
@@ -272,7 +279,14 @@ const FavoritesPage = () => {
   }
   
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div 
+      className="flex flex-col h-full overflow-hidden"
+      style={{ 
+        backgroundColor: `#${bgColor}`,
+        color: `#${textColor}`,
+        ...scrollbarStyles // Add the scrollbar CSS variables
+      }}
+    >
       {/* Header with title and refresh button */}
       <div 
         className="border-b flex justify-between items-center py-2 px-4"
@@ -412,7 +426,7 @@ const FavoritesPage = () => {
       </div>
       
       {/* Main content */}
-      <div className="flex-1 overflow-auto p-4 win2k-scrollbar">
+      <div className="flex-1 overflow-auto p-4 win2k-scrollbar-themed">
         {filteredAndSortedFavorites.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Heart size={40} className="mb-2 opacity-30" />
