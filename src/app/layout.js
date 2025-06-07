@@ -5,6 +5,7 @@ import { futuraCyrillicLight, futuraCyrillicMedium, futuraCyrillicBold } from '@
 import { AppProvider } from '@/contexts/AppContext';
 import { ThemeProvider } from '@/components/layouts/ThemeProvider';
 import ThemeComponents from '@/components/layouts/ThemeComponents';
+import { MessageBoxProvider } from '@/components/windows/MessageBoxProvider';
 
 export const metadata = {
   title: 'JapanShopper - Windows 2000 Edition',
@@ -16,9 +17,11 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${futuraCyrillicMedium.variable} ${futuraCyrillicLight.variable} ${futuraCyrillicBold.variable}`}>
       <body className="min-h-screen font-futura-medium transition-colors duration-300 ease-in-out cursor-win-default">
         <ThemeProvider>
-        <AppProvider>
-          {children}
-        </AppProvider>
+          <MessageBoxProvider>
+            <AppProvider>
+              {children}
+            </AppProvider>
+          </MessageBoxProvider>
           <ThemeComponents />
         </ThemeProvider>
       </body>

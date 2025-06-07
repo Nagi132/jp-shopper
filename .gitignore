@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/src/migrations
+
+# Development tools (keep locally, don't deploy)
+/dev-tools
 
 # next.js
 /.next/

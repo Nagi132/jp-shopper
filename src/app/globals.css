@@ -2,7 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile-specific styles */
+@layer utilities {
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .pb-safe {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+}
 
+/* Mobile navigation adjustments */
+@media (max-width: 768px) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
 
 @layer base {
   :root {

@@ -101,14 +101,14 @@ const NavigationSidebar = ({ theme = {} }) => {
     <>
       {/* Mobile Bottom Navigation */}
       <nav 
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t safe-area-inset-bottom"
         style={{ 
           backgroundColor: `#${bgColor}`,
           borderColor: `#${borderColor}`,
           boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
         }}
       >
-        <div className="grid grid-cols-5 h-14">
+        <div className="grid grid-cols-5 h-16 pb-safe">
           {navItems.slice(0, 5).map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -116,7 +116,7 @@ const NavigationSidebar = ({ theme = {} }) => {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center justify-center",
+                  "flex flex-col items-center justify-center p-1",
                 )}
                 style={{ 
                   color: isActive 
@@ -128,20 +128,20 @@ const NavigationSidebar = ({ theme = {} }) => {
               >
                 {item.highlight ? (
                   <div 
-                    className="w-10 h-10 rounded-full flex items-center justify-center"
+                    className="w-8 h-8 rounded-full flex items-center justify-center mb-1"
                     style={{ 
                       background: `linear-gradient(135deg, #${borderColor}, #${bgColor})`,
                       boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
                     }}
                   >
-                    {item.icon}
+                    <span className="text-sm">{item.icon}</span>
                   </div>
                 ) : (
-                  <div className={isActive ? 'animate-pulse' : ''}>
+                  <div className={`mb-1 ${isActive ? 'animate-pulse' : ''}`}>
                     {item.icon}
                   </div>
                 )}
-                <span className="text-xs mt-1">{item.name}</span>
+                <span className="text-xs text-center leading-tight">{item.name}</span>
               </Link>
             );
           })}

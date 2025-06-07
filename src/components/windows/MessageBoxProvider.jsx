@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Info, XCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,12 @@ const ICONS = {
 export function MessageBoxProvider({ children }) {
   const [messageBoxes, setMessageBoxes] = useState([]);
   const [counter, setCounter] = useState(0);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Only render portal after client-side mount to avoid hydration mismatch
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Show a message box
   const showMessageBox = useCallback(({ 
@@ -60,8 +66,8 @@ export function MessageBoxProvider({ children }) {
     <MessageBoxContext.Provider value={{ showMessageBox, closeMessageBox }}>
       {children}
       
-      {/* Message Box Portal */}
-      {typeof document !== 'undefined' && createPortal(
+      {/* Message Box Portal - only render after client mount */}
+      {isMounted && createPortal(
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
           {messageBoxes.map((box) => (
             <MessageBox 

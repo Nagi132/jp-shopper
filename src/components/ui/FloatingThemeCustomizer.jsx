@@ -364,8 +364,13 @@ const FloatingThemeCustomizer = ({ onThemeChange }) => {
         const width = isOpen ? size.width : 48; 
         const height = isOpen ? size.height : 48;
         
-        const newX = Math.max(0, Math.min(window.innerWidth - width, e.clientX - dragOffset.x));
-        const newY = Math.max(0, Math.min(window.innerHeight - height, e.clientY - dragOffset.y));
+        // Add padding to keep away from edges
+        const minPadding = 10;
+        const maxX = window.innerWidth - width - minPadding;
+        const maxY = window.innerHeight - height - minPadding;
+        
+        const newX = Math.max(minPadding, Math.min(maxX, e.clientX - dragOffset.x));
+        const newY = Math.max(minPadding, Math.min(maxY, e.clientY - dragOffset.y));
         
         setPosition({ x: newX, y: newY });
       }
@@ -563,29 +568,56 @@ const FloatingThemeCustomizer = ({ onThemeChange }) => {
   // Handle window resize to keep customizer within bounds
   useEffect(() => {
     const handleWindowResize = () => {
-      if (position.x + size.width > window.innerWidth) {
-        setPosition({
-          ...position,
-          x: Math.max(0, window.innerWidth - size.width)
-        });
+      const iconSize = 48; // Size when closed
+      const currentWidth = isOpen ? size.width : iconSize;
+      const currentHeight = isOpen ? size.height : iconSize;
+      
+      // Ensure minimum distance from edges (10px padding)
+      const minPadding = 10;
+      const maxX = window.innerWidth - currentWidth - minPadding;
+      const maxY = window.innerHeight - currentHeight - minPadding;
+      
+      let newPosition = { ...position };
+      let updated = false;
+      
+      // Adjust X position if out of bounds
+      if (position.x > maxX) {
+        newPosition.x = Math.max(minPadding, maxX);
+        updated = true;
+      } else if (position.x < minPadding) {
+        newPosition.x = minPadding;
+        updated = true;
       }
-      if (position.y + size.height > window.innerHeight) {
-        setPosition({
-          ...position,
-          y: Math.max(0, window.innerHeight - size.height)
-        });
+      
+      // Adjust Y position if out of bounds
+      if (position.y > maxY) {
+        newPosition.y = Math.max(minPadding, maxY);
+        updated = true;
+      } else if (position.y < minPadding) {
+        newPosition.y = minPadding;
+        updated = true;
+      }
+      
+      if (updated) {
+        setPosition(newPosition);
+        // Save the new position
+        localStorage.setItem('themeCustomizerPosition', JSON.stringify(newPosition));
       }
     };
     
     window.addEventListener('resize', handleWindowResize);
+    
+    // Also run on mount and when open/close state changes
+    handleWindowResize();
+    
     return () => window.removeEventListener('resize', handleWindowResize);
-  }, [position, size]);
+  }, [position, size, isOpen]);
 
   return (
     <div 
       ref={customizerRef}
       id={customizerId}
-      className="fixed z-50"
+      className="fixed z-[9999] hidden md:block"
       style={{
         left: position.x,
         top: position.y
