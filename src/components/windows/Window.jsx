@@ -352,7 +352,7 @@ const Window = React.forwardRef(({
   return (
     <div
       ref={windowRef}
-      className={`absolute overflow-hidden shadow-lg ${isActive ? 'z-10' : 'z-0'} ${
+      className={`absolute overflow-hidden shadow-[5px_5px_0px_rgba(0,0,0,0.2)] ${isActive ? 'z-10' : 'z-0'} ${
         isMaximized ? 'fixed inset-0' : ''
       }`}
       style={{
@@ -360,19 +360,18 @@ const Window = React.forwardRef(({
         top: isMaximized ? 0 : windowPosition.y,
         width: isMaximized ? '100%' : windowSize.width,
         height: isMaximized ? '100%' : windowSize.height,
-        border: `2px solid #${theme?.borderColor || '0A246A'}`,
+        border: `2px solid #${theme?.borderColor || '69EFD7'}`,
         backgroundColor: `#${theme?.bgColor || 'ECE9D8'}`,
-        transition: isDragging || isResizing ? 'none' : 'box-shadow 0.2s',
-        boxShadow: isActive ? '0 8px 16px rgba(0, 0, 0, 0.15)' : 'none'
+        transition: isDragging || isResizing ? 'none' : 'all 0.2s'
       }}
       onMouseDown={handleWindowClick}
     >
-      {/* Title bar */}
+      {/* Title bar - now uses theme colors like the cute windows! */}
       <div 
         className="window-titlebar flex items-center justify-between h-8 px-2 select-none cursor-move"
         style={{ 
-          backgroundColor: `#${theme?.titleBarColor || '0A246A'}`,
-          color: `#${theme?.titleTextColor || 'FFFFFF'}`
+          backgroundColor: `#${theme?.borderColor || '69EFD7'}`,
+          color: '#FFFFFF'
         }}
         onMouseDown={handleMouseDown}
         onDoubleClick={handleTitleBarDoubleClick}
@@ -380,12 +379,9 @@ const Window = React.forwardRef(({
         <div className="text-sm font-medium">{title}</div>
         <div className="flex space-x-1">
           <button
-            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none"
+            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none hover:bg-white hover:bg-opacity-20 rounded transition-colors"
             style={{
-              backgroundColor: `#${theme?.buttonBgColor || 'D4D0C8'}`,
-              borderColor: '#888888',
-              color: '#000000',
-              boxShadow: '2px 2px 0 #FFFFFF inset, -2px -2px 0 #808080 inset'
+              color: '#FFFFFF'
             }}
             onClick={handleMinimize}
             title="Minimize"
@@ -393,12 +389,9 @@ const Window = React.forwardRef(({
             <Minus size={12} />
           </button>
           <button
-            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none"
+            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none hover:bg-white hover:bg-opacity-20 rounded transition-colors"
             style={{
-              backgroundColor: `#${theme?.buttonBgColor || 'D4D0C8'}`,
-              borderColor: '#888888',
-              color: '#000000',
-              boxShadow: '2px 2px 0 #FFFFFF inset, -2px -2px 0 #808080 inset'
+              color: '#FFFFFF'
             }}
             onClick={handleMaximize}
             title={isMaximized ? "Restore" : "Maximize"}
@@ -406,12 +399,9 @@ const Window = React.forwardRef(({
             <Square size={12} />
           </button>
           <button
-            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none"
+            className="window-control flex items-center justify-center w-6 h-6 focus:outline-none hover:bg-white hover:bg-opacity-20 rounded transition-colors"
             style={{
-              backgroundColor: `#${theme?.buttonBgColor || 'D4D0C8'}`,
-              borderColor: '#888888',
-              color: '#000000',
-              boxShadow: '2px 2px 0 #FFFFFF inset, -2px -2px 0 #808080 inset'
+              color: '#FFFFFF'
             }}
             onClick={handleClose}
             title="Close"

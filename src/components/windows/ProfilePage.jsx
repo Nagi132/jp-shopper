@@ -10,13 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { WindowContainer } from '@/components/ui/window-container';
 import ItemCard from '@/components/explore/ItemCard';
 
 /**
  * ProfilePage - Windows-styled unified profile component
  * Users can now both buy and sell without separate roles
  */
-const ProfilePage = ({ isWindowView = true }) => {
+const ProfilePage = ({ isWindowView = true, userId = null }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [originalProfile, setOriginalProfile] = useState(null);
@@ -25,6 +26,7 @@ const ProfilePage = ({ isWindowView = true }) => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isOwnProfile, setIsOwnProfile] = useState(true); // Track if this is the current user's profile
   const [activeTab, setActiveTab] = useState('selling');
   const [items, setItems] = useState([]);
   const [likedItems, setLikedItems] = useState([]);
@@ -41,6 +43,10 @@ const ProfilePage = ({ isWindowView = true }) => {
   const [followPopupTab, setFollowPopupTab] = useState('following');
   const [showReviewsPopup, setShowReviewsPopup] = useState(false);
   const [reviews, setReviews] = useState([]);
+  const [isFollowing, setIsFollowing] = useState(false); // State for follow status
+  
+  // Determine the profile user ID from props or current user
+  const profileUserId = userId || user?.id; 
   
   const router = useRouter();
   const { theme } = useTheme();
@@ -107,25 +113,72 @@ const ProfilePage = ({ isWindowView = true }) => {
   // Load profile data
   useEffect(() => {
     const getProfile = async () => {
+      setLoading(true); // Start loading
+      setError(null); // Reset error
       try {
-        // Get the current user
-        const { data: { user } } = await supabase.auth.getUser();
+        console.log('ProfilePage: Loading profile with userId prop:', userId);
         
-        if (!user) {
+        // Get the current user if not already set
+        let currentUser = user;
+        if (!currentUser) {
+            const { data: authData } = await supabase.auth.getUser();
+            console.log('Fetched auth user:', authData?.user?.id);
+            currentUser = authData?.user;
+            setUser(currentUser); // Set user state if fetched here
+        }
+        
+        // Recalculate profileUserId based on potentially updated user state
+        const effectiveProfileUserId = userId || currentUser?.id; 
+        console.log('Effective profileUserId for fetching:', effectiveProfileUserId);
+
+        if (!currentUser && !userId) {
+          console.log('No authenticated user and no userId provided');
           if (!isWindowView) {
             router.push('/login');
           }
           return;
         }
         
-        setUser(user);
+        console.log('Current authenticated user:', currentUser?.id);
+        setUser(currentUser);
+        
+        // Determine which user's profile to load
+        // Use effectiveProfileUserId calculated above
+        // const profileUserId = userId || user?.id; // REMOVE this line inside useEffect
+        // console.log('Will load profile for userId:', profileUserId); // Update log
+        console.log('Will load profile for userId:', effectiveProfileUserId);
+        
+        // Check if we're viewing the current user's profile
+        const viewingOwnProfile = !userId || (currentUser && userId === currentUser.id);
+        console.log('Viewing own profile?', viewingOwnProfile);
+        setIsOwnProfile(viewingOwnProfile);
+
+        // If viewing someone else's profile, check follow status
+        if (!viewingOwnProfile && currentUser && effectiveProfileUserId) {
+          console.log(`Checking follow status: ${currentUser.id} -> ${effectiveProfileUserId}`);
+          const { count, error: followError } = await supabase
+            .from('user_follows')
+            .select('id', { count: 'exact', head: true })
+            .eq('follower_id', currentUser.id)
+            .eq('following_id', effectiveProfileUserId);
+
+          if (followError) {
+            console.error('Error checking follow status:', followError);
+          } else {
+            console.log('Follow status count:', count);
+            setIsFollowing(count > 0);
+          }
+        }
         
         // Try to get the user's profile
+        console.log('Fetching profile data for user_id:', effectiveProfileUserId);
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', effectiveProfileUserId)
           .single();
+        
+        console.log('Profile fetch result:', { data, error });
         
         if (error && error.code !== 'PGRST116') {
           throw error;
@@ -133,13 +186,15 @@ const ProfilePage = ({ isWindowView = true }) => {
         
         // If profile exists, set it
         if (data) {
+          console.log('Profile found:', data);
           setProfile(data);
           setOriginalProfile(JSON.parse(JSON.stringify(data))); // Deep copy for comparison
         } else {
+          console.log('No profile found, creating default profile');
           // If profile doesn't exist, create a default structure
           const defaultProfile = {
-            user_id: user.id,
-            username: '',
+            user_id: effectiveProfileUserId,
+            username: 'User',
             full_name: '',
             avatar_url: '',
             bio: '',
@@ -153,16 +208,19 @@ const ProfilePage = ({ isWindowView = true }) => {
           setOriginalProfile(JSON.parse(JSON.stringify(defaultProfile)));
         }
         
+        console.log('Loading additional user data for:', effectiveProfileUserId);
         // Load user data
         await Promise.all([
-          loadUserStats(user.id),
-          loadFollowers(user.id),
-          loadFollowing(user.id),
-          loadReviews(user.id),
-          loadProducts(user.id),
-          loadFavorites(user.id),
-          loadSavedItems(user.id)
+          loadUserStats(effectiveProfileUserId),
+          loadFollowers(effectiveProfileUserId),
+          loadFollowing(effectiveProfileUserId),
+          loadReviews(effectiveProfileUserId),
+          loadProducts(effectiveProfileUserId),
+          loadFavorites(effectiveProfileUserId),
+          loadSavedItems(effectiveProfileUserId)
         ]);
+        
+        console.log('Profile data loading complete');
       } catch (error) {
         console.error('Error loading profile:', error);
         setError('Failed to load profile');
@@ -172,7 +230,7 @@ const ProfilePage = ({ isWindowView = true }) => {
     };
     
     getProfile();
-  }, [router, isWindowView]);
+  }, [router, isWindowView, userId]);
   
   // Load followers
   const loadFollowers = async (userId) => {
@@ -275,7 +333,7 @@ const ProfilePage = ({ isWindowView = true }) => {
     } catch (err) {
       console.error('Error loading following:', err);
       // Fallback to mock data if there's an error
-      loadMockFollowerData();
+      // loadMockFollowerData(); // Consider removing/refining fallback
     }
   };
   
@@ -283,50 +341,71 @@ const ProfilePage = ({ isWindowView = true }) => {
   const loadReviews = async (userId) => {
     try {
       // Check if user_reviews table exists
-      const { error: tableCheckError } = await supabase
+      const { data: reviewsTableData, error: tableCheckError } = await supabase
         .from('user_reviews')
-        .select('id')
+        .select('*') // Select all columns to check structure
         .limit(1);
         
       if (tableCheckError) {
-        console.log('Reviews table not available yet, using mock data');
-        return loadMockReviews();
+        console.warn('Reviews table not available or query failed:', tableCheckError.message);
+        // Return early or handle appropriately, maybe set error state
+        setError('Could not query reviews table.');
+        setReviews([]); // Ensure reviews are empty
+        return;
       }
       
+      // Determine the correct column name for the user being reviewed (likely reviewee_id)
+      const revieweeColumn = reviewsTableData && reviewsTableData.length > 0 && 'reviewee_id' in reviewsTableData[0] ? 'reviewee_id' : 'user_id'; 
+      console.log(`Using column '${revieweeColumn}' to fetch reviews for user ID: ${userId}`);
+      
+      // Determine the correct column name for the listing/product (likely listing_id)
+      const itemFKColumn = reviewsTableData && reviewsTableData.length > 0 && 'listing_id' in reviewsTableData[0] ? 'listing_id' : 'product_id';
+      console.log(`Using foreign key column '${itemFKColumn}' to join with listings.`);
+
       // Get reviews for this user
       const { data, error } = await supabase
         .from('user_reviews')
         .select(`
           id,
           rating,
-          text,
+          text, 
+          comment,
           created_at,
-          product_id,
-          products(*),
+          ${itemFKColumn},
+          listings!inner(*),
           reviewer_id,
-          profiles!user_reviews_reviewer_id_fkey(username)
+          profiles!inner(username)
         `)
-        .eq('user_id', userId)
+        .eq(revieweeColumn, userId) // Filter by the user being reviewed
         .order('created_at', { ascending: false });
         
-      if (error) throw error;
+      if (error) throw error; // Let the catch block handle it
       
       if (data && data.length > 0) {
+        console.log('Raw reviews data fetched:', data);
         // Transform data to match our reviews structure
         const formattedReviews = data.map(review => {
-          // Format timestamp to relative time (e.g., "2 days ago")
           const timestamp = formatRelativeTime(review.created_at);
+          const reviewText = review.text || review.comment || ''; // Use text or comment field
           
+          // Ensure listings data and photos exist before accessing
+          const listingImage = review.listings && Array.isArray(review.listings.photos) && review.listings.photos.length > 0
+            ? review.listings.photos[0] // Use the first photo from the listing
+            : `https://picsum.photos/seed/item${review.id}/200/200`; // Fallback image
+
+          const reviewerUsername = review.profiles?.username || 'anonymous'; // Handle potential null profile join
+            
           return {
             id: review.id,
-            username: review.profiles.username,
+            username: reviewerUsername, 
             rating: review.rating,
-            text: review.text,
+            text: reviewText,
             timestamp,
-            productImage: review.products?.images?.[0] || `https://picsum.photos/seed/prod${review.id}/200/200` // Fallback image
+            productImage: listingImage
           };
-        });
+        }).filter(Boolean); // Filter out any nulls if joins failed
         
+        console.log('Formatted reviews:', formattedReviews);
         setReviews(formattedReviews);
         
         // Update stats with the review data
@@ -343,9 +422,11 @@ const ProfilePage = ({ isWindowView = true }) => {
         setReviews([]);
       }
     } catch (err) {
-      console.error('Error loading reviews:', err);
-      // Fallback to mock data if there's an error
-      loadMockReviews();
+      // Improved error logging
+      console.error('Error loading reviews. Status:', err?.status, 'Message:', err?.message, 'Details:', err?.details, 'Raw Error:', err);
+      setError(`Failed to load reviews: ${err?.message || 'Unknown error'}`); // Set a more informative error state
+      // Fallback to mock data is problematic if real data should exist. Let's comment it out for now to see the real error.
+      // loadMockReviews(); 
     }
   };
   
@@ -376,61 +457,75 @@ const ProfilePage = ({ isWindowView = true }) => {
     }
   };
   
-  // Follow/unfollow a user
-  const toggleFollow = async (targetUserId) => {
-    if (!user) return;
-    
+  // Handle follow/unfollow action
+  const handleFollow = async (targetUserId) => {
+    if (!user) {
+      console.error('User not logged in, cannot follow');
+      // Optionally redirect to login or show message
+      return;
+    }
+
+    const currentUserId = user.id;
+    console.log(`Toggling follow for ${targetUserId} by ${currentUserId}. Currently following: ${isFollowing}`);
+
     try {
-      // Check if already following
-      const { data, error } = await supabase
-        .from('user_follows')
-        .select('id')
-        .eq('follower_id', user.id)
-        .eq('following_id', targetUserId)
-        .maybeSingle();
-        
-      if (error) throw error;
-      
-      if (data) {
-        // Unfollow
-        await supabase
+      if (isFollowing) {
+        // --- Unfollow --- 
+        console.log('Attempting to unfollow...');
+        const { error } = await supabase
           .from('user_follows')
           .delete()
-          .eq('id', data.id);
-          
-        // Update UI
-        setFollowing(prev => prev.filter(profile => profile.id !== targetUserId));
+          .eq('follower_id', currentUserId)
+          .eq('following_id', targetUserId);
+
+        if (error) throw error;
+
+        console.log('Unfollow successful');
+        setIsFollowing(false);
+        // Decrement follower count locally
+        setFollowers(prev => prev.filter(f => f.id !== currentUserId)); 
+        
       } else {
-        // Follow
-        await supabase
+        // --- Follow --- 
+        console.log('Attempting to follow...');
+        const { data, error } = await supabase
           .from('user_follows')
-          .insert({
-            follower_id: user.id,
-            following_id: targetUserId
-          });
-          
-        // Get the user profile and update UI
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', targetUserId)
-          .single();
-          
-        if (profileData) {
-          const newFollowing = {
-            id: profileData.user_id,
-            username: profileData.username,
-            full_name: profileData.full_name,
-            avatar_url: profileData.avatar_url,
-            verified: profileData.verification_level === 'verified',
-            follows_you: followers.some(f => f.id === profileData.user_id)
-          };
-          
-          setFollowing(prev => [newFollowing, ...prev]);
+          .insert([{ follower_id: currentUserId, following_id: targetUserId }])
+          .select(); // Optionally select to confirm insertion
+
+        if (error) throw error;
+
+        console.log('Follow successful', data);
+        setIsFollowing(true);
+        // Increment follower count locally (need current user's profile info)
+        // Fetch minimal profile for the current user to add to the list
+        const { data: currentUserProfile, error: profileError } = await supabase
+            .from('profiles')
+            .select('user_id, username, full_name, avatar_url, verification_level')
+            .eq('user_id', currentUserId)
+            .single();
+
+        if (profileError) {
+            console.error("Could not fetch current user's profile for follower list update:", profileError);
+        } else if (currentUserProfile) {
+            const followerToAdd = {
+                id: currentUserProfile.user_id,
+                username: currentUserProfile.username,
+                full_name: currentUserProfile.full_name,
+                avatar_url: currentUserProfile.avatar_url,
+                verified: currentUserProfile.verification_level === 'verified'
+            };
+            setFollowers(prev => [...prev, followerToAdd]);
         }
       }
-    } catch (err) {
-      console.error('Error toggling follow:', err);
+    } catch (error) {
+      console.error('Error toggling follow state:', error);
+      // Show error message to user
+      if (dialog) {
+        dialog.showMessage('Error', `Could not ${isFollowing ? 'unfollow' : 'follow'} user. Please try again. Error: ${error.message}`);
+      } else {
+        setError(`Failed to ${isFollowing ? 'unfollow' : 'follow'} user.`);
+      }
     }
   };
   
@@ -438,9 +533,9 @@ const ProfilePage = ({ isWindowView = true }) => {
   const loadProducts = async (userId) => {
     try {
       const { data, error } = await supabase
-        .from('products')
+        .from('listings')
         .select('*')
-        .eq('seller_id', userId)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
         
       if (error) throw error;
@@ -454,23 +549,45 @@ const ProfilePage = ({ isWindowView = true }) => {
   };
   
   // Load favorited items
-  const loadFavorites = async (userId) => {
+  const loadFavorites = async (profileUserId) => {
     try {
-      const { data, error } = await supabase
-        .from('product_favorites')
-        .select(`
-          product_id,
-          products (*)
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+      // If viewing someone else's profile, only show public data
+      if (!isOwnProfile && user?.id !== profileUserId) {
+        // For other users, we only load their public data
+        const { data, error } = await supabase
+          .from('listing_favorites')
+          .select(`
+            listing_id,
+            listings (*)
+          `)
+          .eq('user_id', profileUserId)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
         
-      if (error) throw error;
-      
-      if (data) {
-        // Extract the product data from the join
-        const favorites = data.map(item => item.products).filter(Boolean);
-        setLikedItems(favorites);
+        if (data) {
+          // Extract the product data from the join
+          const favorites = data.map(item => item.listings).filter(Boolean);
+          setLikedItems(favorites);
+        }
+      } else {
+        // For own profile, load everything
+        const { data, error } = await supabase
+          .from('listing_favorites')
+          .select(`
+            listing_id,
+            listings (*)
+          `)
+          .eq('user_id', profileUserId)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
+        
+        if (data) {
+          // Extract the product data from the join
+          const favorites = data.map(item => item.listings).filter(Boolean);
+          setLikedItems(favorites);
+        }
       }
     } catch (err) {
       console.error('Error loading favorites:', err);
@@ -478,23 +595,30 @@ const ProfilePage = ({ isWindowView = true }) => {
   };
   
   // Load saved items
-  const loadSavedItems = async (userId) => {
+  const loadSavedItems = async (profileUserId) => {
     try {
-      const { data, error } = await supabase
-        .from('product_saves')
-        .select(`
-          product_id,
-          products (*)
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+      // If viewing someone else's profile, only show public data
+      if (!isOwnProfile && user?.id !== profileUserId) {
+        // For others' profiles, we don't show their saved items (privacy)
+        setSavedItems([]);
+      } else {
+        // For own profile, load saved items
+        const { data, error } = await supabase
+          .from('listing_saves')
+          .select(`
+            listing_id,
+            listings (*)
+          `)
+          .eq('user_id', profileUserId)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
         
-      if (error) throw error;
-      
-      if (data) {
-        // Extract the product data from the join
-        const saves = data.map(item => item.products).filter(Boolean);
-        setSavedItems(saves);
+        if (data) {
+          // Extract the product data from the join
+          const saves = data.map(item => item.listings).filter(Boolean);
+          setSavedItems(saves);
+        }
       }
     } catch (err) {
       console.error('Error loading saved items:', err);
@@ -502,16 +626,16 @@ const ProfilePage = ({ isWindowView = true }) => {
   };
   
   // Toggle favorite status for a product
-  const toggleFavorite = async (productId) => {
+  const toggleFavorite = async (listingId) => {
     if (!user) return;
     
     try {
       // Check if already favorited
       const { data, error } = await supabase
-        .from('product_favorites')
+        .from('listing_favorites')
         .select('id')
         .eq('user_id', user.id)
-        .eq('product_id', productId)
+        .eq('listing_id', listingId)
         .maybeSingle();
         
       if (error) throw error;
@@ -519,30 +643,30 @@ const ProfilePage = ({ isWindowView = true }) => {
       if (data) {
         // Remove from favorites
         await supabase
-          .from('product_favorites')
+          .from('listing_favorites')
           .delete()
           .eq('id', data.id);
           
         // Update UI
-        setLikedItems(prev => prev.filter(item => item.id !== productId));
+        setLikedItems(prev => prev.filter(item => item.id !== listingId));
       } else {
         // Add to favorites
         await supabase
-          .from('product_favorites')
+          .from('listing_favorites')
           .insert({
             user_id: user.id,
-            product_id: productId
+            listing_id: listingId
           });
           
         // Get the product details and update UI
-        const { data: productData } = await supabase
-          .from('products')
+        const { data: listingData } = await supabase
+          .from('listings')
           .select('*')
-          .eq('id', productId)
+          .eq('id', listingId)
           .single();
           
-        if (productData) {
-          setLikedItems(prev => [productData, ...prev]);
+        if (listingData) {
+          setLikedItems(prev => [listingData, ...prev]);
         }
       }
     } catch (err) {
@@ -551,16 +675,16 @@ const ProfilePage = ({ isWindowView = true }) => {
   };
   
   // Toggle saved status for a product
-  const toggleSaved = async (productId) => {
+  const toggleSaved = async (listingId) => {
     if (!user) return;
     
     try {
       // Check if already saved
       const { data, error } = await supabase
-        .from('product_saves')
+        .from('listing_saves')
         .select('id')
         .eq('user_id', user.id)
-        .eq('product_id', productId)
+        .eq('listing_id', listingId)
         .maybeSingle();
         
       if (error) throw error;
@@ -568,30 +692,30 @@ const ProfilePage = ({ isWindowView = true }) => {
       if (data) {
         // Remove from saved
         await supabase
-          .from('product_saves')
+          .from('listing_saves')
           .delete()
           .eq('id', data.id);
           
         // Update UI
-        setSavedItems(prev => prev.filter(item => item.id !== productId));
+        setSavedItems(prev => prev.filter(item => item.id !== listingId));
       } else {
         // Add to saved
         await supabase
-          .from('product_saves')
+          .from('listing_saves')
           .insert({
             user_id: user.id,
-            product_id: productId
+            listing_id: listingId
           });
           
         // Get the product details and update UI
-        const { data: productData } = await supabase
-          .from('products')
+        const { data: listingData } = await supabase
+          .from('listings')
           .select('*')
-          .eq('id', productId)
+          .eq('id', listingId)
           .single();
           
-        if (productData) {
-          setSavedItems(prev => [productData, ...prev]);
+        if (listingData) {
+          setSavedItems(prev => [listingData, ...prev]);
         }
       }
     } catch (err) {
@@ -719,88 +843,107 @@ const ProfilePage = ({ isWindowView = true }) => {
   };
   
   const renderProfileInfo = () => (
-    <div className="p-4 space-y-4">
-      {/* Username */}
-      <div className="space-y-2">
-        <Label className="font-bold">Username</Label>
-        <div className="text-lg font-medium">{profile?.username || 'Not set'}</div>
-      </div>
-      
-      {/* Full name */}
-      <div className="space-y-2">
-        <Label className="font-bold">Full Name</Label>
-        <div className="text-lg">{profile?.full_name || 'Not set'}</div>
-      </div>
-      
-      {/* Bio */}
-      <div className="space-y-2">
-        <Label className="font-bold">Bio</Label>
-        <div className="text-sm whitespace-pre-wrap">{profile?.bio || 'No bio provided'}</div>
-      </div>
-      
-      {/* Location */}
-      <div className="space-y-2">
-        <Label className="font-bold">Location</Label>
-        <div className="flex items-center text-md">
-          <MapPin className="w-4 h-4 mr-1 inline" /> {profile?.location || 'Not specified'}
-        </div>
-      </div>
-      
-      {/* Languages */}
-      <div className="space-y-2">
-        <Label className="font-bold">Languages</Label>
-        <div className="flex flex-wrap gap-2">
-          {(profile?.languages || ['Japanese', 'English']).map(lang => (
-            <span 
-              key={lang} 
-              className={`px-3 py-1 text-sm rounded-full bg-[#${borderColor}] text-black`}
-            >
-              {lang}
-            </span>
-          ))}
-        </div>
-      </div>
-        
-      {/* Specialties */}
-      <div className="space-y-2">
-        <Label className="font-bold">Specialties</Label>
-        <div className="flex flex-wrap gap-2">
-          {(profile?.specialties || []).length > 0 ? (
-            (profile?.specialties || []).map(specialty => (
-              <span 
-                key={specialty} 
-                className={`px-3 py-1 text-sm rounded-full bg-[#${bgColor}] text-black`}
-              >
-                {specialty}
-              </span>
-            ))
+    <div className="mb-6 p-4 border-b border-gray-200">
+      <div className="flex items-start space-x-4">
+        {/* Profile Avatar */}
+        <div className="w-20 h-20 rounded-full overflow-hidden border border-gray-300 flex-shrink-0 bg-gray-200">
+          {profile?.avatar_url ? (
+            <img 
+              src={getProfileImageUrl(profile.avatar_url)} 
+              alt={profile.username || "User"} 
+              className="w-full h-full object-cover"
+              onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.username?.charAt(0) || 'U')}&background=random` }}
+            />
           ) : (
-            <span className="text-sm text-gray-500">No specialties selected</span>
+            <div className="flex items-center justify-center h-full bg-gray-300 text-gray-500">
+              {(profile?.username || "U").charAt(0).toUpperCase()}
+            </div>
           )}
         </div>
+        
+        <div className="flex-1">
+          {/* Username */}
+          <h1 className="text-xl font-bold">{profile?.username || 'User'}</h1>
+          
+          {/* Verification Badge */}
+          {profile?.verification_level === 'verified' && (
+            <div className="flex items-center text-xs text-green-600 mt-1">
+              <Shield size={14} className="mr-1" /> Verified
+            </div>
+          )}
+          
+          {/* Follower/Following Stats */}
+          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+            <button onClick={() => { setFollowPopupTab('following'); setShowFollowPopup(true); }} className="hover:underline">
+              <strong>{following.length}</strong> Following
+            </button>
+            <button onClick={() => { setFollowPopupTab('followers'); setShowFollowPopup(true); }} className="hover:underline">
+              <strong>{followers.length}</strong> Followers
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bio */}
+      {isEditing ? (
+        <Textarea 
+          className="mt-4 w-full" 
+          value={profile?.bio || ''} 
+          onChange={(e) => setProfile({...profile, bio: e.target.value})} 
+          placeholder="Tell us about yourself..."
+        />
+      ) : (
+        profile?.bio && <p className="mt-4 text-gray-700">{profile.bio}</p>
+      )}
+      
+      {/* Location */}
+      {isEditing ? (
+        <div className="mt-2 flex items-center">
+          <MapPin size={16} className="mr-2 text-gray-400" />
+          <Input 
+            className="text-sm" 
+            value={profile?.location || ''} 
+            onChange={(e) => setProfile({...profile, location: e.target.value})} 
+            placeholder="Location"
+          />
+        </div>
+      ) : (
+        profile?.location && (
+          <div className="mt-2 flex items-center text-sm text-gray-500">
+            <MapPin size={16} className="mr-2" />
+            {profile.location}
+          </div>
+        )
+      )}
+      
+      {/* Stats - Ratings/Sales */}
+      <div className="mt-4 flex items-center space-x-4 text-sm text-gray-600">
+        <button onClick={() => setShowReviewsPopup(true)} className="flex items-center hover:underline">
+          <Star size={16} className="mr-1 text-yellow-400" fill="currentColor" /> 
+          <strong>{stats.averageRating?.toFixed(1) || 'N/A'}</strong> 
+          <span className="ml-1">({reviews.length} review{reviews.length !== 1 ? 's' : ''})</span>
+        </button>
+        {/* Add sales/purchases stats if relevant */}
+        {/* <span><strong>{stats.sales}</strong> Sales</span> */}
       </div>
       
-      {/* Settings button to redirect to settings */}
-      <div className="flex justify-end pt-4">
-        <Button 
-          variant="default"
-          onClick={() => {
-            // Open settings window or navigate to settings page
-            if (isWindowView) {
-              // Access window manager to open settings
-              const openWindow = window.__openWindow;
-              if (typeof openWindow === 'function') {
-                openWindow('settings', 'SettingsPage', 'Settings');
-              }
-            } else {
-              router.push('/settings');
-            }
-          }}
-          className={`bg-[#${borderColor}] hover:bg-[#${borderColor}]/90 text-black`}
-        >
-          Edit in Settings
+      {/* Edit Button */}
+      {isOwnProfile && !isEditing && (
+        <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="mt-4">
+          Edit Profile
         </Button>
-      </div>
+      )}
+      {isOwnProfile && isEditing && (
+        <div className="mt-4 flex space-x-2">
+          <Button size="sm" onClick={handleSaveChanges} disabled={saving}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Save Changes
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={saving}>
+            Cancel
+          </Button>
+        </div>
+      )}
     </div>
   );
   
@@ -860,16 +1003,34 @@ const ProfilePage = ({ isWindowView = true }) => {
             ) : (
               <ul className="divide-y">
                 {followData.map(user => (
-                  <li key={user.id} className="p-4 hover:bg-gray-50 cursor-pointer">
+                  <li 
+                    key={user.id} 
+                    className="p-4 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => {
+                      setShowFollowPopup(false); // Close current popup
+                      const targetUserId = user.id;
+                      const targetUsername = user.username || 'User';
+                      console.log(`Attempting to open profile window for user: ${targetUserId}`);
+                      // Try using the window.__openWindow method found elsewhere
+                      if (typeof window !== 'undefined' && typeof window.__openWindow === 'function') {
+                        // Assuming the window ID format is componentName-id
+                        window.__openWindow(`profile-${targetUserId}`, 'ProfilePage', `${targetUsername}'s Profile`, { userId: targetUserId }); 
+                      } else {
+                        console.warn('__openWindow function not found, cannot open profile window dynamically.');
+                        // Maybe show an alert or fallback to router if applicable
+                        // router.push(`/profile/${targetUserId}`); 
+                      }
+                    }}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
                           <img 
-                            src={user.avatar_url} 
+                            src={getProfileImageUrl(user.avatar_url)}
                             alt={user.username}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=random`;
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username || 'U')}&background=random`;
                             }}
                           />
                         </div>
@@ -1082,7 +1243,7 @@ const ProfilePage = ({ isWindowView = true }) => {
     );
   }
   
-  return (
+  const content = (
     <div className={`h-full flex flex-col ${isWindowView ? 'bg-white' : 'bg-gray-50'}`}>
       {/* Profile header */}
       <div 
@@ -1146,10 +1307,6 @@ const ProfilePage = ({ isWindowView = true }) => {
             </div>
             
             <div className="text-sm flex items-center space-x-3">
-              {profile?.full_name && (
-                <span>{profile.full_name}</span>
-              )}
-              
               {/* Following/Followers counts - order changed */}
               <div className="flex space-x-3 text-sm">
                 <button 
@@ -1171,6 +1328,18 @@ const ProfilePage = ({ isWindowView = true }) => {
                   <span className="font-bold">{followers.length}</span> followers
                 </button>
               </div>
+              {/* ADD FOLLOW BUTTON HERE */}
+              {!isOwnProfile && (
+                <Button 
+                  size="sm" 
+                  variant={isFollowing ? 'secondary' : 'outline'} 
+                  className="ml-auto" // Keeps it pushed right if space allows
+                  onClick={() => handleFollow(profileUserId)} // Pass profileUserId from component scope
+                  disabled={!user} 
+                >
+                  {isFollowing ? 'Following' : 'Follow'} 
+                </Button>
+              )}
             </div>
             
             {profile?.location && (
@@ -1240,6 +1409,17 @@ const ProfilePage = ({ isWindowView = true }) => {
       {renderReviewsPopup()}
     </div>
   );
+  
+  // For window view, don't use WindowContainer title since Window.jsx already provides it
+  if (isWindowView) {
+    return (
+      <WindowContainer>
+        {content}
+      </WindowContainer>
+    );
+  }
+  
+  return content;
 };
 
 // SVG Icon components

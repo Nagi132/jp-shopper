@@ -5,8 +5,12 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useTheme } from '@/components/layouts/ThemeProvider';
 import { useApp } from '@/contexts/AppContext';
+import { getThemeStyles } from '@/lib/theme-utils';
+import { WindowLoadingState, WindowErrorState, WindowEmptyState, WindowSearchEmptyState } from '@/components/ui/window-states';
+import { WindowContainer, WindowSection } from '@/components/ui/window-container';
+import { WindowButton } from '@/components/ui/window-button';
 import { 
-  Loader2, AlertCircle, MessageSquare, Search, ChevronRight, 
+  MessageSquare, Search, ChevronRight, 
   RefreshCw, User, Clock, Check, Circle, Send
 } from 'lucide-react';
 
@@ -31,25 +35,14 @@ const MessagesPage = ({ isWindowView = true }) => {
   const { theme } = useTheme();
   const { openWindow } = useApp();
   
-  // Get theme colors
+  // Get theme styles using utility functions
+  const themeStyles = getThemeStyles(theme);
+  const primaryStyles = getThemeStyles(theme, 'primary');
+  const mutedStyles = getThemeStyles(theme, 'muted');
+  
+  // Legacy theme variables for components that haven't been updated yet
   const borderColor = theme?.borderColor || '69EFD7';
   const bgColor = theme?.bgColor || 'FED1EB';
-  
-  // Determine text color based on background color
-  const getContrastText = (hexColor) => {
-    // Convert hex to RGB
-    const r = parseInt(hexColor.substr(0, 2), 16);
-    const g = parseInt(hexColor.substr(2, 2), 16);
-    const b = parseInt(hexColor.substr(4, 2), 16);
-    
-    // Calculate luminance
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    // Return black for light colors, white for dark
-    return luminance > 0.5 ? '000000' : 'FFFFFF';
-  };
-  
-  const textColor = theme?.textColor || getContrastText(bgColor);
 
   // Load user and conversations
   useEffect(() => {
@@ -464,76 +457,45 @@ const MessagesPage = ({ isWindowView = true }) => {
   // Show loading indicator
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div 
-          className="w-10 h-10 rounded-full animate-spin mb-3"
-          style={{ 
-            borderTopWidth: '3px',
-            borderRightWidth: '3px',
-            borderStyle: 'solid',
-            borderColor: `#${borderColor}` 
-          }}
-        ></div>
-        <span className="ml-2">Loading messages...</span>
-      </div>
+      <WindowLoadingState 
+        message="Loading your messages..."
+        size="lg"
+      />
     );
   }
 
   // Show error
   if (error) {
     return (
-      <div className="h-full p-4 flex flex-col items-center justify-center">
-        <div 
-          className="p-4 rounded-sm max-w-md border-l-4 border-red-500"
-          style={{ backgroundColor: '#FEF2F2' }}
-        >
-          <div className="flex">
-            <AlertCircle className="w-5 h-5 mr-3 text-red-500" />
-            <div>
-              <h3 className="text-red-800 font-semibold">Error Loading Messages</h3>
-              <p className="text-red-700 mt-1">{error}</p>
-              <button
-                className="mt-3 px-3 py-1 text-sm rounded-sm bg-red-500 text-white"
-                onClick={handleRefresh}
-              >
-                <RefreshCw className="w-4 h-4 mr-1 inline" />
-                Try Again
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <WindowErrorState
+        title="Error Loading Messages"
+        message={error}
+        onRetry={handleRefresh}
+      />
     );
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <WindowContainer>
       {/* Header */}
       <div 
-        className="py-2 px-4 flex items-center justify-between border-b"
-        style={{ 
-          backgroundColor: `#${bgColor}30`, 
-          borderColor: `#${borderColor}40` 
-        }}
+        className="py-3 px-4 flex items-center justify-between border-b"
+        style={mutedStyles}
       >
         <div className="flex items-center">
-          <MessageSquare className="w-5 h-5 mr-2" style={{ color: `#${borderColor}` }} />
-          <h2 className="text-lg font-medium">Messages</h2>
+          <MessageSquare className="w-5 h-5 mr-2" style={{ color: themeStyles.color }} />
+          <h2 className="text-lg font-semibold" style={{ color: themeStyles.color }}>Messages</h2>
         </div>
         
-        <button
-          className="flex items-center px-2 py-1 text-sm rounded-sm"
-          style={{ 
-            backgroundColor: `#${borderColor}20`,
-            color: `#${borderColor}`,
-            border: `1px solid #${borderColor}40`
-          }}
+        <WindowButton
+          variant="secondary"
+          size="sm"
           onClick={handleRefresh}
           disabled={refreshing}
         >
           <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
           {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        </WindowButton>
       </div>
       
       {/* Split view for conversations and messages */}
@@ -564,23 +526,20 @@ const MessagesPage = ({ isWindowView = true }) => {
           {/* Conversations list */}
           <div className="flex-1 overflow-y-auto">
             {filteredConversations.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center p-4 text-center">
-                <MessageSquare className="w-12 h-12 mb-2 opacity-20" />
-                <p className="text-sm mb-2">
-                  {searchQuery 
-                    ? 'No conversations match your search' 
-                    : 'No conversations yet'}
-                </p>
-                {searchQuery && (
-                  <button
-                    className="text-sm"
-                    style={{ color: `#${borderColor}` }}
-                    onClick={() => setSearchQuery('')}
-                  >
-                    Clear search
-                  </button>
-                )}
-              </div>
+              searchQuery ? (
+                <WindowSearchEmptyState
+                  searchQuery={searchQuery}
+                  onClearSearch={() => setSearchQuery('')}
+                />
+              ) : (
+                <WindowEmptyState
+                  icon={MessageSquare}
+                  title="No conversations yet"
+                  message="Start a conversation by creating a request or accepting one as a shopper."
+                  actionLabel="Browse Requests"
+                  onAction={() => router.push('/requests')}
+                />
+              )
             ) : (
               <div className="divide-y" style={{ borderColor: `#${borderColor}30` }}>
                 {filteredConversations.map((conversation) => (
@@ -792,7 +751,7 @@ const MessagesPage = ({ isWindowView = true }) => {
           {activeConversation ? `Request #${activeConversation.requestId}` : 'No active conversation'}
         </span>
       </div>
-    </div>
+    </WindowContainer>
   );
 };
 

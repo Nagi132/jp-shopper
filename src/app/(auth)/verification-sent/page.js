@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Mail, CheckCircle, RefreshCw } from 'lucide-react';
 
-export default function VerificationSentPage() {
+function VerificationSentContent() {
   const searchParams = useSearchParams();
   const email = searchParams.get('email');
   const [resending, setResending] = useState(false);
@@ -171,5 +171,24 @@ export default function VerificationSentPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function VerificationSentPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center">
+              <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+              Loading...
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <VerificationSentContent />
+    </Suspense>
   );
 }

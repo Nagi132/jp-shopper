@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { WindowButton } from '@/components/ui/window-button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { WindowContainer } from '@/components/ui/window-container';
 import { useTheme } from '@/components/layouts/ThemeProvider';
 
 // Predefined color schemes
@@ -75,8 +76,12 @@ export default function PersonalizationDialog({ onClose }) {
   };
 
   return (
-    <div className="p-4 space-y-6 max-h-[500px] overflow-y-auto">
-      <h2 className="text-lg font-bold mb-4">Personalize Your Desktop</h2>
+    <WindowContainer
+      title="Personalize Your Desktop"
+      hasCloseButton={true}
+      onClose={onClose}
+    >
+      <div className="space-y-6 max-h-[500px] overflow-y-auto">
       
       {/* Color Schemes */}
       <div className="space-y-4">
@@ -213,39 +218,28 @@ export default function PersonalizationDialog({ onClose }) {
           </div>
           <div className="mt-4">
             <span>Sample Text</span>
-            <Button 
+            <WindowButton 
               className="ml-2" 
-              style={{
-                backgroundColor: `#${customTheme.buttonBgColor}`,
-                color: `#${customTheme.textColor}`,
-                border: `1px solid #${customTheme.borderColor}`
-              }}
+              variant="primary"
             >
               Button
-            </Button>
+            </WindowButton>
           </div>
         </div>
       </div>
       
-      {/* Actions */}
-      <div className="flex justify-end space-x-2 pt-4 border-t">
-        <Button 
-          onClick={handleApply}
-          variant="outline"
-          className="flex items-center space-x-1"
-        >
-          <Check className="w-4 h-4" />
-          <span>Apply</span>
-        </Button>
-        <Button 
-          onClick={onClose}
-          variant="outline"
-          className="flex items-center space-x-1"
-        >
-          <X className="w-4 h-4" />
-          <span>Cancel</span>
-        </Button>
+        {/* Actions */}
+        <div className="flex justify-end space-x-2 pt-4 border-t" style={{ borderColor: `#${theme.borderColor}40` }}>
+          <WindowButton 
+            onClick={handleApply}
+            variant="primary"
+            className="flex items-center space-x-1"
+          >
+            <Check className="w-4 h-4" />
+            <span>Apply</span>
+          </WindowButton>
+        </div>
       </div>
-    </div>
+    </WindowContainer>
   );
 }

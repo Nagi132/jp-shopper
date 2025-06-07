@@ -1,92 +1,173 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from '@/components/ui/button';
+import { WindowContainer, WindowSection } from '@/components/ui/window-container';
+import { WindowButton } from '@/components/ui/window-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/components/layouts/ThemeProvider';
 import { useMessageBoxUtils } from './MessageBoxProvider';
-import { createClient } from '@supabase/supabase-js';
-import { UserCircle, Shield, Save, AlertTriangle, Loader2, Eye, EyeOff, Lock, Key, Upload, X, Camera } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
+import { UserCircle, Shield, Save, AlertTriangle, Loader2, Eye, EyeOff, Lock, Key, Upload, X, Camera, MapPin, Globe, Tag, Check, Clock, Phone } from 'lucide-react';
 
-// Supabase client initialization - create once, outside component
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://your-project-url.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// More detailed Supabase connection info
-console.log('Supabase configuration:',
-  { 
-    url: supabaseUrl,
-    hasAnonKey: !!supabaseAnonKey,
-    anonKeyPrefix: supabaseAnonKey ? supabaseAnonKey.substring(0, 5) + '...' : 'missing'
+// Helper function to process avatar URLs consistently
+const getProfileImageUrl = (avatarUrl, username = 'User') => {
+  // Always fallback to UI Avatars if no URL or if it's problematic
+  const getFallbackUrl = () => `https://ui-avatars.com/api/?name=${encodeURIComponent(username?.charAt(0) || 'U')}&background=random`;
+  
+  if (!avatarUrl) {
+    return getFallbackUrl();
   }
-);
-
-// Test Supabase connection
-(async function testSupabaseConnection() {
-  try {
-    const { data, error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
-    
-    if (error) {
-      console.error('Supabase connection test failed:', error);
-    } else {
-      console.log('Supabase connection test succeeded');
-    }
-    
-    // Test storage access
+  
+  // If it's already a full URL, return as-is
+  if (avatarUrl.startsWith('http')) {
+    return avatarUrl;
+  }
+  
+  // If it's a storage path, construct the proper Supabase storage URL
+  if (avatarUrl && typeof avatarUrl === 'string') {
     try {
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-      
-      if (bucketsError) {
-        console.error('Supabase storage access test failed:', bucketsError);
-        console.error('This could be due to missing storage permissions on your anon key');
-      } else {
-        console.log('Available storage buckets:', buckets.map(b => b.name).join(', ') || 'No buckets found');
-        
-        // Check if profiles bucket exists - case-sensitive check
-        const profilesBucket = buckets.find(b => b.name === 'profiles');
-        if (!profilesBucket) {
-          console.log('The "profiles" bucket is not visible to anon key - this is expected with RLS policies');
-        } else {
-          console.log('"profiles" bucket found with ID:', profilesBucket.id);
-        }
+      // Get the public URL for the storage path
+      const { data } = supabase.storage.from('avatars').getPublicUrl(avatarUrl);
+      if (data?.publicUrl) {
+        return data.publicUrl;
       }
-    } catch (storageErr) {
-      console.error('Supabase storage test exception:', storageErr);
+    } catch (error) {
+      // If storage URL construction fails, fall back to UI avatar
+      console.warn('Failed to construct avatar URL:', error);
     }
-  } catch (err) {
-    console.error('Error testing Supabase connection:', err);
   }
-})();
+  
+  // Fallback to UI avatar if all else fails
+  return getFallbackUrl();
+};
 
-console.log('Supabase client initialized with URL:', supabaseUrl);
 
-// Country list for dropdown - defined outside component to prevent recreation
+// Countries list with popular countries at the top
 const COUNTRIES = [
-  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", 
-  "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", 
-  "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", 
-  "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", 
-  "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica", 
-  "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", 
-  "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", 
-  "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", 
-  "Iran", "Iraq", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", 
-  "Korea, North", "Korea, South", "Kosovo", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", 
-  "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", 
-  "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", 
-  "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", 
-  "Nigeria", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Panama", "Papua New Guinea", "Paraguay", "Peru", 
-  "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", 
-  "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", 
-  "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", 
-  "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", 
-  "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", 
-  "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", 
-  "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+  { value: "japan", label: "Japan 🇯🇵" },
+  { value: "united-states", label: "United States 🇺🇸" },
+  { value: "united-kingdom", label: "United Kingdom 🇬🇧" },
+  { value: "canada", label: "Canada 🇨🇦" },
+  { value: "australia", label: "Australia 🇦🇺" },
+  { value: "germany", label: "Germany 🇩🇪" },
+  { value: "france", label: "France 🇫🇷" },
+  { value: "south-korea", label: "South Korea 🇰🇷" },
+  { value: "china", label: "China 🇨🇳" },
+  { value: "singapore", label: "Singapore 🇸🇬" },
+  { value: "---", label: "──────────", disabled: true },
+  { value: "afghanistan", label: "Afghanistan" },
+  { value: "albania", label: "Albania" },
+  { value: "algeria", label: "Algeria" },
+  { value: "argentina", label: "Argentina" },
+  { value: "armenia", label: "Armenia" },
+  { value: "austria", label: "Austria" },
+  { value: "azerbaijan", label: "Azerbaijan" },
+  { value: "bangladesh", label: "Bangladesh" },
+  { value: "belgium", label: "Belgium" },
+  { value: "brazil", label: "Brazil" },
+  { value: "bulgaria", label: "Bulgaria" },
+  { value: "chile", label: "Chile" },
+  { value: "colombia", label: "Colombia" },
+  { value: "croatia", label: "Croatia" },
+  { value: "czech-republic", label: "Czech Republic" },
+  { value: "denmark", label: "Denmark" },
+  { value: "egypt", label: "Egypt" },
+  { value: "estonia", label: "Estonia" },
+  { value: "finland", label: "Finland" },
+  { value: "greece", label: "Greece" },
+  { value: "hungary", label: "Hungary" },
+  { value: "iceland", label: "Iceland" },
+  { value: "india", label: "India" },
+  { value: "indonesia", label: "Indonesia" },
+  { value: "ireland", label: "Ireland" },
+  { value: "israel", label: "Israel" },
+  { value: "italy", label: "Italy" },
+  { value: "latvia", label: "Latvia" },
+  { value: "lithuania", label: "Lithuania" },
+  { value: "luxembourg", label: "Luxembourg" },
+  { value: "malaysia", label: "Malaysia" },
+  { value: "mexico", label: "Mexico" },
+  { value: "netherlands", label: "Netherlands" },
+  { value: "new-zealand", label: "New Zealand" },
+  { value: "norway", label: "Norway" },
+  { value: "philippines", label: "Philippines" },
+  { value: "poland", label: "Poland" },
+  { value: "portugal", label: "Portugal" },
+  { value: "romania", label: "Romania" },
+  { value: "russia", label: "Russia" },
+  { value: "spain", label: "Spain" },
+  { value: "sweden", label: "Sweden" },
+  { value: "switzerland", label: "Switzerland" },
+  { value: "taiwan", label: "Taiwan" },
+  { value: "thailand", label: "Thailand" },
+  { value: "turkey", label: "Turkey" },
+  { value: "ukraine", label: "Ukraine" },
+  { value: "vietnam", label: "Vietnam" }
 ];
+
+// Popular languages for Japan shopping
+const LANGUAGES = [
+  { value: "japanese", label: "Japanese 🇯🇵" },
+  { value: "english", label: "English 🇺🇸" },
+  { value: "korean", label: "Korean 🇰🇷" },
+  { value: "chinese-simplified", label: "Chinese (Simplified) 🇨🇳" },
+  { value: "chinese-traditional", label: "Chinese (Traditional) 🇹🇼" },
+  { value: "spanish", label: "Spanish 🇪🇸" },
+  { value: "french", label: "French 🇫🇷" },
+  { value: "german", label: "German 🇩🇪" },
+  { value: "portuguese", label: "Portuguese 🇵🇹" },
+  { value: "italian", label: "Italian 🇮🇹" },
+  { value: "russian", label: "Russian 🇷🇺" },
+  { value: "arabic", label: "Arabic 🇸🇦" },
+  { value: "thai", label: "Thai 🇹🇝" },
+  { value: "vietnamese", label: "Vietnamese 🇻🇳" }
+];
+
+// Timezone options for better UX
+const TIMEZONES = [
+  { value: "Asia/Tokyo", label: "Japan (JST)" },
+  { value: "America/New_York", label: "Eastern Time (ET)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
+  { value: "America/Chicago", label: "Central Time (CT)" },
+  { value: "America/Denver", label: "Mountain Time (MT)" },
+  { value: "Europe/London", label: "Greenwich Mean Time (GMT)" },
+  { value: "Europe/Paris", label: "Central European Time (CET)" },
+  { value: "Europe/Berlin", label: "Central European Time (CET)" },
+  { value: "Australia/Sydney", label: "Australian Eastern Time (AET)" },
+  { value: "Asia/Seoul", label: "Korea Standard Time (KST)" },
+  { value: "Asia/Shanghai", label: "China Standard Time (CST)" },
+  { value: "Asia/Singapore", label: "Singapore Standard Time (SGT)" },
+  { value: "UTC", label: "Coordinated Universal Time (UTC)" }
+];
+
+// Country codes for phone numbers
+const PHONE_COUNTRIES = [
+  { code: "+81", country: "Japan", flag: "🇯🇵" },
+  { code: "+1", country: "United States", flag: "🇺🇸" },
+  { code: "+1", country: "Canada", flag: "🇨🇦" },
+  { code: "+44", country: "United Kingdom", flag: "🇬🇧" },
+  { code: "+49", country: "Germany", flag: "🇩🇪" },
+  { code: "+33", country: "France", flag: "🇫🇷" },
+  { code: "+82", country: "South Korea", flag: "🇰🇷" },
+  { code: "+86", country: "China", flag: "🇨🇳" },
+  { code: "+65", country: "Singapore", flag: "🇸🇬" },
+  { code: "+61", country: "Australia", flag: "🇦🇺" }
+];
+
+// Interest tags for better organization
+const INTEREST_CATEGORIES = {
+  fashion: ["Clothing", "Shoes", "Accessories", "Vintage Fashion", "Streetwear", "Designer Brands"],
+  culture: ["Anime", "Manga", "J-Pop", "Traditional Arts", "Cosplay", "Japanese Music"],
+  lifestyle: ["Beauty Products", "Skincare", "Home Decor", "Kitchen Items", "Stationery"],
+  hobbies: ["Gaming", "Collecting", "Photography", "Sports", "Outdoor Activities"],
+  food: ["Japanese Snacks", "Tea", "Sake", "Cooking Supplies", "Regional Specialties"],
+  tech: ["Electronics", "Gadgets", "Computer Hardware", "Cameras", "Mobile Accessories"]
+};
 
 // Default user data - defined outside component
 const DEFAULT_USER_DATA = {
@@ -98,6 +179,10 @@ const DEFAULT_USER_DATA = {
   bio: '',
   country: '',
   interests: '',
+  languages: '',
+  timezone: '',
+  phoneCountryCode: '+81',
+  phoneNumber: '',
   avatarUrl: ''
 };
 
@@ -109,8 +194,12 @@ const DEMO_USER_DATA = {
   firstName: 'Demo',
   lastName: 'User',
   bio: 'This is a demo account for testing the JP Shopper app.',
-  country: 'Japan',
+  country: 'japan',
   interests: 'Anime, Manga, Electronics, Fashion',
+  languages: 'japanese,english',
+  timezone: 'Asia/Tokyo',
+  phoneCountryCode: '+81',
+  phoneNumber: '90-1234-5678',
   avatarUrl: ''
 };
 
@@ -125,6 +214,10 @@ const SettingsPage = ({ isWindowView = true }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userData, setUserData] = useState(DEFAULT_USER_DATA);
+  const [selectedLanguages, setSelectedLanguages] = useState([]);
+  const [selectedInterests, setSelectedInterests] = useState([]);
+  const [formErrors, setFormErrors] = useState({});
+  const [activeInterestCategory, setActiveInterestCategory] = useState('fashion');
 
   // Password change state
   const [changingPassword, setChangingPassword] = useState(false);
@@ -163,7 +256,6 @@ const SettingsPage = ({ isWindowView = true }) => {
     // Fallback timer to prevent infinite loading state
     const fallbackTimer = setTimeout(() => {
       if (isMounted.current) {
-        console.log('Fallback timer triggered - forcing loading to false');
         setLoading(false);
         setUserData(DEMO_USER_DATA);
         messageBox.warning('Failed to load profile data. Using demo mode instead.');
@@ -178,8 +270,6 @@ const SettingsPage = ({ isWindowView = true }) => {
         const { data, error: authError } = await supabase.auth.getUser();
         
         if (authError || !data.user) {
-          console.error('Auth error:', authError);
-          
           if (isMounted.current) {
             // Using demo mode
             setUserData(DEMO_USER_DATA);
@@ -215,7 +305,6 @@ const SettingsPage = ({ isWindowView = true }) => {
             if (!isMounted.current) return;
             
             if (error) {
-              console.error('Error fetching profile:', error);
               // Just show default data if profile can't be loaded
               setUserData({
                 username: user.user_metadata?.username || user.email?.split('@')[0] || '',
@@ -226,102 +315,65 @@ const SettingsPage = ({ isWindowView = true }) => {
                 bio: '',
                 country: '',
                 interests: '',
+                languages: '',
+                timezone: '',
+                phoneCountryCode: '+81',
+                phoneNumber: '',
                 avatarUrl: '',
                 isExternalProvider: isExternalProvider, // Store provider info
                 provider: user.app_metadata?.provider || 'email'
               });
             } else if (profile) {
-              // Map database fields to our form fields - be flexible with field names
-              let firstName = '';
-              let lastName = '';
-              let bioText = '';
-              let countryValue = '';
-              let interestsValue = '';
-              let avatarUrlValue = '';
+              // Use standardized field names - with fallback for legacy data
+              const firstName = profile.first_name || (profile.full_name ? profile.full_name.split(' ')[0] : '') || '';
+              const lastName = profile.last_name || (profile.full_name ? profile.full_name.split(' ').slice(1).join(' ') : '') || '';
               
-              // First name/last name mapping - handle from separate fields or from full_name
-              if (profile.first_name) firstName = profile.first_name;
-              else if (profile.firstname) firstName = profile.firstname;
-              else if (profile.firstName) firstName = profile.firstName;
-              else if (profile.fname) firstName = profile.fname;
-              // If no first name field but there's a full_name field, parse it
-              else if (profile.full_name) {
-                const nameParts = profile.full_name.split(' ');
-                if (nameParts.length > 0) {
-                  firstName = nameParts[0]; // First part is first name
-                  if (nameParts.length > 1) {
-                    // Rest is last name
-                    lastName = nameParts.slice(1).join(' ');
-                  }
-                }
-              }
+              // Process avatar URL using the helper function (updated)
+              const avatarUrlValue = getProfileImageUrl(profile.avatar_url, profile.username);
               
-              // Last name mapping (if not already set from full_name)
-              if (!lastName) {
-                if (profile.last_name) lastName = profile.last_name;
-                else if (profile.lastname) lastName = profile.lastname;
-                else if (profile.lastName) lastName = profile.lastName;
-                else if (profile.lname) lastName = profile.lname;
-              }
-              
-              // Bio mapping
-              if (profile.bio) bioText = profile.bio;
-              else if (profile.about) bioText = profile.about;
-              else if (profile.description) bioText = profile.description;
-              
-              // Country mapping
-              if (profile.country) countryValue = profile.country;
-              else if (profile.location) countryValue = profile.location;
-              
-              // Interests mapping
-              if (profile.interests) interestsValue = profile.interests;
-              else if (profile.hobbies) interestsValue = profile.hobbies;
-              else if (profile.interest) interestsValue = profile.interest;
-              else if (profile.hobby) interestsValue = profile.hobby;
-              
-              // Avatar/profile photo mapping
-              if (profile.avatar_url) avatarUrlValue = profile.avatar_url;
-              else if (profile.avatarUrl) avatarUrlValue = profile.avatarUrl;
-              else if (profile.profile_photo) avatarUrlValue = profile.profile_photo;
-              else if (profile.photo_url) avatarUrlValue = profile.photo_url;
-              else if (profile.image) avatarUrlValue = profile.image;
-              
-              // Check if avatarUrl is a storage path and convert to full URL if needed
-              if (avatarUrlValue && avatarUrlValue.startsWith('avatars/')) {
-                try {
-                  const { data: { publicUrl } } = supabase.storage
-                    .from('profiles')
-                    .getPublicUrl(avatarUrlValue);
-                    
-                  if (publicUrl) {
-                    avatarUrlValue = publicUrl;
-                  }
-                } catch (storageErr) {
-                  console.error('Error getting avatar URL:', storageErr);
-                }
-              }
-              
-              // Set the user data with the mapped fields
+              // Set the user data with standardized field mapping
               setUserData({
                 username: profile.username || user.user_metadata?.username || user.email?.split('@')[0] || '',
                 email: user.email || '',
                 password: '********', // Password is always masked
                 firstName: firstName,
                 lastName: lastName,
-                bio: bioText,
-                country: countryValue,
-                interests: interestsValue,
+                bio: profile.bio || '',
+                country: profile.country || '',
+                interests: profile.interests || '',
+                languages: profile.languages || '',
+                timezone: profile.timezone || 'Asia/Tokyo',
+                phoneCountryCode: profile.phone_country_code || '+81',
+                phoneNumber: profile.phone_number || '',
                 avatarUrl: avatarUrlValue,
                 isExternalProvider: isExternalProvider, // Store provider info
                 provider: user.app_metadata?.provider || 'email'
               });
               
+              // Set selected interests array from comma-separated string
+              if (profile.interests && typeof profile.interests === 'string') {
+                const interestsArray = profile.interests.split(',').map(s => s.trim()).filter(s => s);
+                setSelectedInterests(interestsArray);
+              } else if (Array.isArray(profile.interests)) {
+                setSelectedInterests(profile.interests);
+              }
+              
+              // Set selected languages array from comma-separated string
+              if (profile.languages && typeof profile.languages === 'string') {
+                const languagesArray = profile.languages.split(',').map(s => s.trim()).filter(s => s);
+                setSelectedLanguages(languagesArray);
+              } else if (Array.isArray(profile.languages)) {
+                setSelectedLanguages(profile.languages);
+              }
+              
+              // Set photo preview after URL processing
               if (avatarUrlValue) {
                 setPhotoPreview(avatarUrlValue);
+              } else {
+                setPhotoPreview('');
               }
             }
           } catch (profileError) {
-            console.error('Error in profile fetch:', profileError);
             // Fallback to basic user data
               setUserData({
                 username: user.user_metadata?.username || user.email?.split('@')[0] || '',
@@ -332,8 +384,12 @@ const SettingsPage = ({ isWindowView = true }) => {
                 bio: '',
                 country: '',
                 interests: '',
-              avatarUrl: '',
-              isExternalProvider: isExternalProvider,
+                languages: '',
+                timezone: '',
+                phoneCountryCode: '+81',
+                phoneNumber: '',
+                avatarUrl: '',
+                isExternalProvider: isExternalProvider,
                 provider: user.app_metadata?.provider || 'email'
               });
             }
@@ -344,8 +400,6 @@ const SettingsPage = ({ isWindowView = true }) => {
         setLoading(false);
         
       } catch (error) {
-        console.error('Unexpected error in fetchUserData:', error);
-        
         if (isMounted.current) {
           setUserData(DEMO_USER_DATA);
           clearTimeout(fallbackTimer);
@@ -365,12 +419,85 @@ const SettingsPage = ({ isWindowView = true }) => {
     };
   }, [messageBox]); 
 
-  // Update user data
+  // Update user data with validation
   const updateUserData = (key, value) => {
     setUserData(prev => ({
       ...prev,
       [key]: value
     }));
+    
+    // Clear error for this field when user starts typing
+    if (formErrors[key]) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[key];
+        return newErrors;
+      });
+    }
+  };
+  
+  // Form validation
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!userData.firstName.trim()) {
+      errors.firstName = 'First name is required';
+    } else if (userData.firstName.length < 2) {
+      errors.firstName = 'First name must be at least 2 characters';
+    }
+    
+    if (!userData.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(userData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    if (userData.bio && userData.bio.length > 500) {
+      errors.bio = 'Bio must be less than 500 characters';
+    }
+    
+    // Validate phone number if provided
+    if (userData.phoneNumber.trim()) {
+      const phoneRegex = /^[\d\s\-\(\)\+]+$/;
+      if (!phoneRegex.test(userData.phoneNumber)) {
+        errors.phoneNumber = 'Please enter a valid phone number';
+      } else if (userData.phoneNumber.replace(/[\D]/g, '').length < 7) {
+        errors.phoneNumber = 'Phone number must have at least 7 digits';
+      }
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
+  // Handle language selection
+  const toggleLanguage = (languageValue) => {
+    setSelectedLanguages(prev => {
+      if (prev.includes(languageValue)) {
+        return prev.filter(lang => lang !== languageValue);
+      } else {
+        return [...prev, languageValue];
+      }
+    });
+  };
+  
+  // Handle interest selection
+  const toggleInterest = (interest) => {
+    setSelectedInterests(prev => {
+      if (prev.includes(interest)) {
+        return prev.filter(int => int !== interest);
+      } else {
+        return [...prev, interest];
+      }
+    });
+  };
+  
+  // Clear all interests in category
+  const clearInterestCategory = (category) => {
+    const categoryInterests = INTEREST_CATEGORIES[category];
+    setSelectedInterests(prev => 
+      prev.filter(interest => !categoryInterests.includes(interest))
+    );
   };
 
   // Calculate password strength
@@ -670,16 +797,16 @@ const SettingsPage = ({ isWindowView = true }) => {
       // Create a unique file path
       const fileExt = file.name.split('.').pop();
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      const filePath = fileName; // Don't include 'avatars/' prefix - Supabase adds this automatically
       
       // Test bucket existence before attempting upload
       try {
         const { error: bucketError } = await supabase.storage
-          .from('profiles')
+          .from('avatars')
           .list('', { limit: 1 });
           
         if (bucketError) {
-          console.error('Cannot access profiles bucket:', bucketError);
+          console.error('Cannot access avatars bucket:', bucketError);
           messageBox.error(`Cannot access the storage bucket: ${bucketError.message || 'Unknown error'}`);
           return null;
         }
@@ -689,7 +816,7 @@ const SettingsPage = ({ isWindowView = true }) => {
       
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('profiles')
+        .from('avatars')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true
@@ -709,7 +836,7 @@ const SettingsPage = ({ isWindowView = true }) => {
       
       // Get the public URL
       const { data: urlData, error: urlError } = supabase.storage
-        .from('profiles')
+        .from('avatars')
         .getPublicUrl(filePath);
         
       if (urlError) {
@@ -723,7 +850,7 @@ const SettingsPage = ({ isWindowView = true }) => {
       
       // Return both the storage path and public URL
       return {
-        path: filePath,
+        path: filePath, // Just the filename
         url: publicUrl
       };
       
@@ -738,6 +865,13 @@ const SettingsPage = ({ isWindowView = true }) => {
 
   // Handle save
   const handleSave = async () => {
+    // Validate form first
+    if (!validateForm()) {
+      messageBox.error('Please fix the errors below before saving.');
+      setSaving(false);
+      return;
+    }
+    
     try {
       setSaving(true);
       
@@ -780,24 +914,23 @@ const SettingsPage = ({ isWindowView = true }) => {
         try {
           console.log('Deleting profile photo from storage');
           
-          // Extract the path from avatarUrl if it's a full URL
-          let storagePath = userData.avatarUrl;
-          if (storagePath.includes('storage/v1/object/public/profiles/')) {
-            // Extract path from full URL - this is a bit fragile, but works for Supabase URLs
-            storagePath = storagePath.split('storage/v1/object/public/profiles/')[1];
+          // Extract the filename from avatarUrl
+          let fileName = userData.avatarUrl;
+          if (fileName.includes('storage/v1/object/public/avatars/')) {
+            // Extract filename from full URL
+            fileName = fileName.split('storage/v1/object/public/avatars/')[1];
+          } else if (fileName.startsWith('avatars/')) {
+            // Remove avatars/ prefix to get just the filename
+            fileName = fileName.substring(8);
           }
+          // fileName should now be just the filename without any path prefix
           
-          // Check if the path is just the filename or includes 'avatars/'
-          if (storagePath && !storagePath.startsWith('avatars/')) {
-            storagePath = `avatars/${storagePath}`;
-          }
+          console.log('Attempting to delete file at path:', fileName);
           
-          console.log('Attempting to delete file at path:', storagePath);
-          
-          if (storagePath) {
+          if (fileName) {
             const { error: deleteError } = await supabase.storage
-              .from('profiles')
-              .remove([storagePath]);
+              .from('avatars')
+              .remove([fileName]);
               
             if (deleteError) {
               console.error('Error deleting profile photo:', deleteError);
@@ -842,122 +975,41 @@ const SettingsPage = ({ isWindowView = true }) => {
       
       // Update main profile data
       if (existingProfile) {
-        // Build a profile update object that matches the existing schema
+        // Use standardized field names for profile update
         const profileUpdate = {
-          user_id: user.id,
+          username: userData.username,
+          first_name: userData.firstName,
+          last_name: userData.lastName,
+          full_name: `${userData.firstName} ${userData.lastName}`.trim(),
+          bio: userData.bio,
+          country: userData.country,
+          interests: selectedInterests.length > 0 ? selectedInterests.join(', ') : '',
+          // Handle languages - convert to string for TEXT column or array for TEXT[] column
+          languages: selectedLanguages.length > 0 ? selectedLanguages.join(', ') : '',
+          timezone: userData.timezone,
+          phone_country_code: userData.phoneCountryCode,
+          phone_number: userData.phoneNumber,
           updated_at: new Date().toISOString()
         };
         
-        // First name mapping
-        if ('firstname' in existingProfile) {
-          profileUpdate.firstname = userData.firstName;
-        }
-        if ('first_name' in existingProfile) {
-          profileUpdate.first_name = userData.firstName;
-        }
-        if ('firstName' in existingProfile) {
-          profileUpdate.firstName = userData.firstName;
-        }
-        if ('fname' in existingProfile) {
-          profileUpdate.fname = userData.firstName;
-        }
-        
-        // Last name mapping
-        if ('lastname' in existingProfile) {
-          profileUpdate.lastname = userData.lastName;
-        }
-        if ('last_name' in existingProfile) {
-          profileUpdate.last_name = userData.lastName;
-        }
-        if ('lastName' in existingProfile) {
-          profileUpdate.lastName = userData.lastName;
-        }
-        if ('lname' in existingProfile) {
-          profileUpdate.lname = userData.lastName;
-        }
-        
-        // Bio mapping
-        if ('bio' in existingProfile) {
-          profileUpdate.bio = userData.bio;
-        }
-        if ('about' in existingProfile) {
-          profileUpdate.about = userData.bio;
-        }
-        if ('description' in existingProfile) {
-          profileUpdate.description = userData.bio;
-        }
-        
-        // Country mapping
-        if ('country' in existingProfile) {
-          profileUpdate.country = userData.country;
-        }
-        if ('location' in existingProfile) {
-          profileUpdate.location = userData.country;
-        }
-        
-        // Add username if it exists in schema
-        if ('username' in existingProfile) {
-          profileUpdate.username = userData.username;
-        }
-        
-        // Handle name fields if they exist
-        if ('name' in existingProfile) {
-          profileUpdate.name = `${userData.firstName} ${userData.lastName}`.trim();
-        }
-        if ('full_name' in existingProfile) {
-          profileUpdate.full_name = `${userData.firstName} ${userData.lastName}`.trim();
-        }
-        
-        // Always include interests since we've added the column
-        profileUpdate.interests = userData.interests;
-        
         // Add photo data if available
         if (photoData) {
-          // Try different field names for avatar to match schema
-          if ('avatar_url' in existingProfile) {
-            profileUpdate.avatar_url = photoData.path;
-          }
-          if ('avatarUrl' in existingProfile) {
-            profileUpdate.avatarUrl = photoData.path;
-          }
-          if ('profile_photo' in existingProfile) {
-            profileUpdate.profile_photo = photoData.path;
-          }
-          if ('photo_url' in existingProfile) {
-            profileUpdate.photo_url = photoData.path;
-          }
-          if ('image' in existingProfile) {
-            profileUpdate.image = photoData.path;
-          }
-          
-          // If none of the fields exist, default to avatar_url
-          if (!('avatar_url' in existingProfile) && 
-              !('avatarUrl' in existingProfile) && 
-              !('profile_photo' in existingProfile) && 
-              !('photo_url' in existingProfile) && 
-              !('image' in existingProfile)) {
-            profileUpdate.avatar_url = photoData.path;
-          }
+          profileUpdate.avatar_url = photoData.path; // Store just the filename
         } else if (photoPreview === '') {
           // User removed the photo
-          if ('avatar_url' in existingProfile) profileUpdate.avatar_url = null;
-          if ('avatarUrl' in existingProfile) profileUpdate.avatarUrl = null;
-          if ('profile_photo' in existingProfile) profileUpdate.profile_photo = null;
-          if ('photo_url' in existingProfile) profileUpdate.photo_url = null;
-          if ('image' in existingProfile) profileUpdate.image = null;
+          profileUpdate.avatar_url = null;
         }
         
         // For existing profiles, use UPDATE instead of UPSERT to avoid conflicts
         
-        // Remove user_id from update as it's used in the filter
-        const { user_id, ...updateFields } = profileUpdate;
+        // Update existing profile using standardized field names
         
         // Update profile in database - use UPDATE for existing profiles
         let profileError;
         try {
           const { error } = await supabase
           .from('profiles')
-          .update(updateFields)
+          .update(profileUpdate)
           .eq('user_id', user.id);
           
           profileError = error;
@@ -968,33 +1020,55 @@ const SettingsPage = ({ isWindowView = true }) => {
         if (profileError) {
           console.error('Profile update error:', profileError);
           
-          // If error is about the interests column, retry without it
-          if (profileError.message && profileError.message.includes('interests')) {
-            console.log('Error with interests column, retrying without it');
+          // Handle missing column errors gracefully or type mismatch errors
+          if (profileError.message && (profileError.message.includes('does not exist') || profileError.message.includes('is of type text[] but expression is of type text'))) {
+            console.log('Schema mismatch detected, updating with only basic fields');
+            console.log('Error details:', profileError);
             
-            // Remove interests from update fields
-            delete updateFields.interests;
+            // Try with only basic fields that should exist
+            const basicUpdate = {
+              username: userData.username,
+              full_name: `${userData.firstName} ${userData.lastName}`.trim(),
+              bio: userData.bio || '',
+              updated_at: new Date().toISOString()
+            };
             
-            // Try update again without interests
-            try {
-            const { error: retryError } = await supabase
-              .from('profiles')
-              .update(updateFields)
-              .eq('user_id', user.id);
-              
-            if (retryError) {
-                console.error('Profile update error (retry without interests):', retryError);
-              messageBox.error('Could not update profile: ' + retryError.message);
-              setSaving(false);
-              return;
+            // Add photo data if available
+            if (photoData) {
+              basicUpdate.avatar_url = photoData.path;
+            } else if (photoPreview === '') {
+              basicUpdate.avatar_url = null;
             }
             
-            // Store interests in localStorage as fallback
-            localStorage.setItem('user_interests', userData.interests);
-              console.log('Saved interests to localStorage as fallback');
-            } catch (retryErr) {
-              console.error('Exception during profile update retry:', retryErr);
-              messageBox.error('Could not update profile: ' + retryErr.message);
+            try {
+              const { error: basicError } = await supabase
+                .from('profiles')
+                .update(basicUpdate)
+                .eq('user_id', user.id);
+                
+              if (basicError) {
+                console.error('Basic profile update failed:', basicError);
+                messageBox.error('Could not update profile. Please run the database migration first.');
+                setSaving(false);
+                return;
+              }
+              
+              // Store additional fields in localStorage as fallback
+              localStorage.setItem('user_preferences', JSON.stringify({
+                country: userData.country,
+                interests: selectedInterests.join(', '),
+                languages: selectedLanguages.join(', '),
+                timezone: userData.timezone,
+                phoneCountryCode: userData.phoneCountryCode,
+                phoneNumber: userData.phoneNumber
+              }));
+              
+              console.log('Basic profile saved, additional preferences stored locally');
+              messageBox.warning('Profile saved with basic info. Run database migration for full functionality.');
+              
+            } catch (basicErr) {
+              console.error('Exception during basic profile update:', basicErr);
+              messageBox.error('Could not update profile: ' + basicErr.message);
               setSaving(false);
               return;
             }
@@ -1009,12 +1083,19 @@ const SettingsPage = ({ isWindowView = true }) => {
         
         // Add basic field structure for new profile
         // These fields are the most commonly used in Supabase schemas
+        const interestsString = selectedInterests.length > 0 ? selectedInterests.join(', ') : '';
+        const languagesString = selectedLanguages.length > 0 ? selectedLanguages.join(', ') : '';
+        
         const profileUpdate = {
           user_id: user.id,
           username: userData.username,
           full_name: `${userData.firstName} ${userData.lastName}`.trim(),
           bio: userData.bio,
-          interests: userData.interests
+          interests: interestsString,
+          languages: languagesString,
+          timezone: userData.timezone,
+          phone_country_code: userData.phoneCountryCode,
+          phone_number: userData.phoneNumber
         };
         
         // Add avatar if available
@@ -1096,94 +1177,343 @@ const SettingsPage = ({ isWindowView = true }) => {
       >
         <Loader2 className="w-8 h-8 animate-spin mb-4" style={{ color: `#${theme.borderColor}` }} />
         <p style={{ color: `#${theme.textColor}` }}>Loading your profile data...</p>
-        <Button 
+        <WindowButton 
           className="mt-4 text-sm"
           onClick={() => {
             setLoading(false);
             setUserData(DEMO_USER_DATA);
           }}
-          style={{
-            backgroundColor: `#${theme.buttonBgColor || 'D4D0C8'}`,
-            color: `#000000`,
-            borderColor: '#888888',
-            boxShadow: 'inset 2px 2px 0 #FFFFFF, inset -2px -2px 0 #808080',
-            opacity: loading ? 0.5 : 1
-          }}
+          variant="secondary"
+          disabled={loading}
         >
           Skip Loading
-        </Button>
+        </WindowButton>
       </div>
     );
   }
 
   return (
-    <div 
-      className={`${isWindowView ? 'p-4' : 'p-6 bg-white rounded-lg shadow'}`}
-      style={isWindowView ? { backgroundColor: `#${theme.bgColor}` } : {}}
-    >
-      <h1 className="text-xl font-bold mb-6" style={{ color: `#${theme.textColor}` }}>
-        User Settings
-      </h1>
-
-      <Tabs defaultValue="account" className="w-full">
-        <TabsList 
-          className="grid grid-cols-2 mb-4"
-          style={{
-            backgroundColor: `#${theme.bgColor}`,
-            borderColor: `#${theme.borderColor}`,
-            padding: '1px'
-          }}
-        >
-          <TabsTrigger 
-            value="account"
-            className="flex items-center gap-1 border"
-            style={{
-              backgroundColor: `#${theme.buttonBgColor || 'D4D0C8'} !important`,
-              color: `#000000`,
-              borderColor: '#888888',
-              boxShadow: 'inset 2px 2px 0 #FFFFFF, inset -2px -2px 0 #808080'
-            }}
-          >
-            <UserCircle className="w-4 h-4" />
-            <span>Account</span>
-          </TabsTrigger>
-          <TabsTrigger 
-            value="profile"
-            className="flex items-center gap-1 border"
-            style={{
-              backgroundColor: `#${theme.buttonBgColor || 'D4D0C8'} !important`,
-              color: `#000000`,
-              borderColor: '#888888',
-              boxShadow: 'inset 2px 2px 0 #FFFFFF, inset -2px -2px 0 #808080'
-            }}
-          >
-            <Shield className="w-4 h-4" />
-            <span>Profile</span>
-          </TabsTrigger>
+    <WindowContainer>
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          <TabsTrigger value="privacy">Privacy</TabsTrigger>
         </TabsList>
 
-        {/* Account Settings */}
-        <TabsContent value="account" className="space-y-4 border p-4 rounded-sm" style={{ borderColor: `#${theme.borderColor}` }}>
-          <div className="space-y-4">
-            <h3 className="font-medium text-lg mb-4" style={{ color: `#${theme.textColor}` }}>
-              Account Settings
-            </h3>
-            
-            {userData.isExternalProvider && (
-              <div className="p-3 mb-4 border rounded-sm bg-blue-50" style={{ borderColor: `#${theme.borderColor}` }}>
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 pt-0.5">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 18.3333C14.6024 18.3333 18.3334 14.6023 18.3334 9.99996C18.3334 5.39759 14.6024 1.66663 10 1.66663C5.39765 1.66663 1.66669 5.39759 1.66669 9.99996C1.66669 14.6023 5.39765 18.3333 10 18.3333Z" stroke="#3B82F6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M10 6.66663V9.99996" stroke="#3B82F6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M10 13.3334H10.0083" stroke="#3B82F6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+        {/* Profile Settings */}
+        <TabsContent value="profile" className="space-y-6">
+          {/* Profile Photo Section */}
+          <WindowSection title="Profile Photo">
+            <div className="flex items-start space-x-6">
+              <div className="relative">
+                <div 
+                  className={`w-32 h-32 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-100 ${dragActive ? 'ring-2 ring-blue-500' : ''}`}
+                  style={{ borderColor: `#${theme.borderColor}` }}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  {photoPreview ? (
+                    <img 
+                      src={photoPreview} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback to UI Avatars instead of clearing
+                        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.firstName?.charAt(0) || userData.username?.charAt(0) || 'U')}&background=random`;
+                        e.target.src = fallbackUrl;
+                        setPhotoPreview(fallbackUrl);
+                      }}
+                    />
+                  ) : null}
+                  <div className={`${photoPreview ? 'hidden' : 'flex'} w-full h-full items-center justify-center`}>
+                    <UserCircle className="w-20 h-20 text-gray-400" />
                   </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">External Authentication</h3>
-                    <div className="mt-1 text-sm text-blue-700">
-                      <p>You're signed in using <strong>{userData.provider}</strong>. Some account settings can only be changed through your {userData.provider} account.</p>
+                </div>
+                
+                {photoPreview && (
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full shadow-md"
+                    title="Remove photo"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex-1">
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-medium mb-2" style={{ color: `#${theme.textColor}` }}>Upload New Photo</h4>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Choose a photo that represents you well. JPG, PNG, or GIF. Max size 2MB.
+                    </p>
+                  </div>
+                  
+                  <div className="flex space-x-2">
+                    <WindowButton
+                      variant="primary"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {uploadingPhoto ? 'Uploading...' : 'Choose Photo'}
+                    </WindowButton>
+                    
+                    {photoPreview && (
+                      <WindowButton
+                        variant="secondary"
+                        size="sm"
+                        onClick={removePhoto}
+                      >
+                        Remove
+                      </WindowButton>
+                    )}
+                  </div>
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+            </div>
+          </WindowSection>
+          
+          {/* Basic Information */}
+          <WindowSection title="Basic Information">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName" className="flex items-center gap-2" style={{ color: `#${theme.textColor}` }}>
+                    <UserCircle className="w-4 h-4" />
+                    First Name *
+                  </Label>
+                  <Input
+                    id="firstName"
+                    value={userData.firstName}
+                    onChange={(e) => updateUserData('firstName', e.target.value)}
+                    className={`transition-all duration-200 ${formErrors.firstName ? 'border-red-500 ring-2 ring-red-200' : 'focus:ring-2 focus:ring-blue-200'}`}
+                    style={{
+                      backgroundColor: `#${theme.bgColor}`,
+                      color: `#${theme.textColor}`,
+                      borderColor: formErrors.firstName ? '#ef4444' : `#${theme.borderColor}`
+                    }}
+                    placeholder="Enter your first name"
+                  />
+                  {formErrors.firstName && (
+                    <div className="flex items-center gap-1 text-red-500">
+                      <AlertTriangle className="w-3 h-3" />
+                      <p className="text-xs">{formErrors.firstName}</p>
                     </div>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="lastName" className="flex items-center gap-2" style={{ color: `#${theme.textColor}` }}>
+                    <UserCircle className="w-4 h-4" />
+                    Last Name
+                  </Label>
+                  <Input
+                    id="lastName"
+                    value={userData.lastName}
+                    onChange={(e) => updateUserData('lastName', e.target.value)}
+                    className="transition-all duration-200 focus:ring-2 focus:ring-blue-200"
+                    style={{
+                      backgroundColor: `#${theme.bgColor}`,
+                      color: `#${theme.textColor}`,
+                      borderColor: `#${theme.borderColor}`
+                    }}
+                    placeholder="Enter your last name"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="bio" className="flex items-center gap-2" style={{ color: `#${theme.textColor}` }}>
+                  <Tag className="w-4 h-4" />
+                  About You
+                </Label>
+                <Textarea
+                  id="bio"
+                  value={userData.bio}
+                  onChange={(e) => updateUserData('bio', e.target.value)}
+                  placeholder="Tell others about yourself, your interests, and what you're looking for from Japan..."
+                  className={`min-h-24 transition-all duration-200 resize-none ${formErrors.bio ? 'border-red-500 ring-2 ring-red-200' : 'focus:ring-2 focus:ring-blue-200'}`}
+                  style={{
+                    backgroundColor: `#${theme.bgColor}`,
+                    color: `#${theme.textColor}`,
+                    borderColor: formErrors.bio ? '#ef4444' : `#${theme.borderColor}`
+                  }}
+                />
+                <div className="flex justify-between items-center mt-1">
+                  {formErrors.bio && (
+                    <div className="flex items-center gap-1 text-red-500">
+                      <AlertTriangle className="w-3 h-3" />
+                      <p className="text-xs">{formErrors.bio}</p>
+                    </div>
+                  )}
+                  <p className="text-xs opacity-60 ml-auto" style={{ color: `#${theme.textColor}` }}>
+                    {userData.bio?.length || 0}/500 characters
+                  </p>
+                </div>
+              </div>
+            </div>
+          </WindowSection>
+          
+          {/* Location & Contact */}
+          <WindowSection title="Location & Contact Information">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="country" style={{ color: `#${theme.textColor}` }}>
+                  <MapPin className="w-4 h-4 inline mr-1" />
+                  Country
+                </Label>
+                <Select
+                  value={userData.country}
+                  onValueChange={(value) => updateUserData('country', value)}
+                >
+                  <SelectTrigger
+                    style={{
+                      backgroundColor: `#${theme.bgColor}`,
+                      color: `#${theme.textColor}`,
+                      borderColor: `#${theme.borderColor}`
+                    }}
+                  >
+                    <SelectValue placeholder="Select your country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((country) => (
+                      <SelectItem 
+                        key={country.value} 
+                        value={country.value}
+                        disabled={country.disabled}
+                      >
+                        {country.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="timezone" style={{ color: `#${theme.textColor}` }}>
+                  <Globe className="w-4 h-4 inline mr-1" />
+                  Timezone
+                </Label>
+                <Select
+                  value={userData.timezone}
+                  onValueChange={(value) => updateUserData('timezone', value)}
+                >
+                  <SelectTrigger
+                    style={{
+                      backgroundColor: `#${theme.bgColor}`,
+                      color: `#${theme.textColor}`,
+                      borderColor: `#${theme.borderColor}`
+                    }}
+                  >
+                    <SelectValue placeholder="Select your timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONES.map((timezone) => (
+                      <SelectItem 
+                        key={timezone.value} 
+                        value={timezone.value}
+                      >
+                        {timezone.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2" style={{ color: `#${theme.textColor}` }}>
+                <Phone className="w-4 h-4" />
+                Phone Number (Optional)
+              </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={userData.phoneCountryCode}
+                  onValueChange={(value) => updateUserData('phoneCountryCode', value)}
+                >
+                  <SelectTrigger 
+                    className="w-36 transition-all duration-200 focus:ring-2 focus:ring-blue-200"
+                    style={{
+                      backgroundColor: `#${theme.bgColor}`,
+                      color: `#${theme.textColor}`,
+                      borderColor: `#${theme.borderColor}`
+                    }}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PHONE_COUNTRIES.map((country) => (
+                      <SelectItem 
+                        key={`${country.code}-${country.country}`} 
+                        value={country.code}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{country.flag}</span>
+                          <span className="font-mono">{country.code}</span>
+                          <span className="text-xs opacity-70">{country.country}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="90-1234-5678"
+                  value={userData.phoneNumber}
+                  onChange={(e) => updateUserData('phoneNumber', e.target.value)}
+                  className={`flex-1 transition-all duration-200 ${formErrors.phoneNumber ? 'border-red-500 ring-2 ring-red-200' : 'focus:ring-2 focus:ring-blue-200'}`}
+                  style={{
+                    backgroundColor: `#${theme.bgColor}`,
+                    color: `#${theme.textColor}`,
+                    borderColor: formErrors.phoneNumber ? '#ef4444' : `#${theme.borderColor}`
+                  }}
+                />
+              </div>
+              {formErrors.phoneNumber && (
+                <div className="flex items-center gap-1 text-red-500">
+                  <AlertTriangle className="w-3 h-3" />
+                  <p className="text-xs">{formErrors.phoneNumber}</p>
+                </div>
+              )}
+              <p className="text-xs opacity-70 flex items-center gap-1" style={{ color: `#${theme.textColor}` }}>
+                <Shield className="w-3 h-3" />
+                Used for order updates and delivery coordination
+              </p>
+            </div>
+          </WindowSection>
+        </TabsContent>
+        
+        {/* Account Settings */}
+        <TabsContent value="account" className="space-y-6">
+          <WindowSection title="Account Information">
+            <div className="space-y-4">
+              {userData.isExternalProvider && (
+              <div className="p-4 mb-4 border rounded-sm" style={{ 
+                borderColor: `#${theme.borderColor}`,
+                backgroundColor: `#${theme.bgColor}20`
+              }}>
+                <div className="flex items-start">
+                  <Shield className="w-5 h-5 mr-3 mt-0.5" style={{ color: `#${theme.borderColor}` }} />
+                  <div>
+                    <h3 className="text-sm font-medium" style={{ color: `#${theme.textColor}` }}>External Authentication</h3>
+                    <p className="mt-1 text-sm opacity-80" style={{ color: `#${theme.textColor}` }}>
+                      You're signed in using <strong>{userData.provider}</strong>. Some account settings can only be changed through your {userData.provider} account.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1193,36 +1523,55 @@ const SettingsPage = ({ isWindowView = true }) => {
               {/* Username (not editable) */}
               <div className="space-y-2">
                 <Label htmlFor="username" style={{ color: `#${theme.textColor}` }}>Username</Label>
-                <Input
-                  id="username"
-                  value={userData.username}
-                  disabled
-                  style={{
-                    backgroundColor: `#${theme.bgColor}80`,
-                    color: `#${theme.textColor}`,
-                    borderColor: `#${theme.borderColor}`
-                  }}
-                />
+                <div className="relative">
+                  <Input
+                    id="username"
+                    value={userData.username}
+                    disabled
+                    className="pr-8"
+                    style={{
+                      backgroundColor: `#${theme.bgColor}50`,
+                      color: `#${theme.textColor}`,
+                      borderColor: `#${theme.borderColor}`
+                    }}
+                  />
+                  <Lock className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 opacity-50" />
+                </div>
                 <p className="text-xs opacity-70" style={{ color: `#${theme.textColor}` }}>Username cannot be changed</p>
               </div>
               
               {/* Email */}
               <div className="space-y-2">
-                <Label htmlFor="email" style={{ color: `#${theme.textColor}` }}>Email Address</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="email"
-                      type="email"
-                      value={userData.email}
-                    disabled={true}
-                      style={{
-                        backgroundColor: `#${theme.bgColor}`,
-                        color: `#${theme.textColor}`,
-                        borderColor: `#${theme.borderColor}`
-                      }}
-                    />
+                <Label htmlFor="email" className="flex items-center gap-2" style={{ color: `#${theme.textColor}` }}>
+                  <Globe className="w-4 h-4" />
+                  Email Address *
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={userData.email}
+                  onChange={(e) => updateUserData('email', e.target.value)}
+                  className={`transition-all duration-200 ${formErrors.email ? 'border-red-500 ring-2 ring-red-200' : 'focus:ring-2 focus:ring-blue-200'}`}
+                  style={{
+                    backgroundColor: `#${theme.bgColor}`,
+                    color: `#${theme.textColor}`,
+                    borderColor: formErrors.email ? '#ef4444' : `#${theme.borderColor}`
+                  }}
+                  placeholder="your.email@example.com"
+                  disabled={userData.isExternalProvider}
+                />
+                {formErrors.email && (
+                  <div className="flex items-center gap-1 text-red-500">
+                    <AlertTriangle className="w-3 h-3" />
+                    <p className="text-xs">{formErrors.email}</p>
                   </div>
-                <p className="text-xs opacity-70" style={{ color: `#${theme.textColor}` }}>Email cannot be changed directly. Please contact support if you need to update your email.</p>
+                )}
+                {!userData.isExternalProvider && (
+                  <p className="text-xs opacity-70 flex items-center gap-1" style={{ color: `#${theme.textColor}` }}>
+                    <Shield className="w-3 h-3" />
+                    Changes to email will require verification
+                  </p>
+                )}
               </div>
               
               {/* Password */}
@@ -1241,12 +1590,10 @@ const SettingsPage = ({ isWindowView = true }) => {
                         borderColor: `#${theme.borderColor}`
                       }}
                     />
-                    <Button
-                      type="button"
-                      variant="vintageActive"
-                      className={userData.isExternalProvider ? "opacity-50" : ""}
+                    <WindowButton
+                      variant="primary"
+                      disabled={userData.isExternalProvider}
                       onClick={() => {
-                        console.log('🚨 PASSWORD BUTTON CLICKED');
                         if (userData.isExternalProvider) {
                           messageBox.info(
                             `Since you sign in with ${userData.provider}, you manage your password through your ${userData.provider} account settings.`,
@@ -1256,10 +1603,9 @@ const SettingsPage = ({ isWindowView = true }) => {
                           directPasswordChange();
                         }
                       }}
-                      disabled={userData.isExternalProvider}
                     >
                       Change
-                    </Button>
+                    </WindowButton>
                   </div>
                 ) : (
                   <div className="space-y-3 border rounded p-3" style={{ borderColor: `#${theme.borderColor}` }}>
@@ -1385,11 +1731,9 @@ const SettingsPage = ({ isWindowView = true }) => {
                     </div>
                     
                     <div className="flex gap-2 justify-end pt-2">
-                      <Button
-                        type="button"
-                        variant="vintage"
+                      <WindowButton
+                        variant="secondary"
                         onClick={() => {
-                          console.log('🚨 CANCEL PASSWORD BUTTON CLICKED');
                           setChangingPassword(false);
                           setCurrentPassword('');
                           setNewPassword('');
@@ -1399,10 +1743,9 @@ const SettingsPage = ({ isWindowView = true }) => {
                         }}
                       >
                         Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="vintageActive"
+                      </WindowButton>
+                      <WindowButton
+                        variant="primary"
                         onClick={handlePasswordChange}
                         disabled={saving || !currentPassword || !newPassword || !confirmPassword || passwordStrength < 30 || newPassword !== confirmPassword}
                       >
@@ -1417,208 +1760,211 @@ const SettingsPage = ({ isWindowView = true }) => {
                             <span>Update Password</span>
                           </>
                         )}
-                      </Button>
+                      </WindowButton>
                     </div>
                   </div>
                 )}
-            </div>
-            
-              {/* Email */}
-              <div className="space-y-2">
-                <Label htmlFor="email" style={{ color: `#${theme.textColor}` }}>Email Address</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="email"
-                    type="email"
-                    value={userData.email}
-                    disabled={true}
-                    style={{
-                      backgroundColor: `#${theme.bgColor}`,
-                      color: `#${theme.textColor}`,
-                      borderColor: `#${theme.borderColor}`
-                    }}
-                  />
-                </div>
-                <p className="text-xs opacity-70" style={{ color: `#${theme.textColor}` }}>Email cannot be changed directly. Please contact support if you need to update your email.</p>
               </div>
             </div>
           </div>
+          </WindowSection>
         </TabsContent>
         
-        {/* Profile Settings */}
-        <TabsContent value="profile" className="space-y-4 border p-4 rounded-sm" style={{ borderColor: `#${theme.borderColor}` }}>
-          <div className="space-y-4">
-            <h3 className="font-medium text-lg mb-4" style={{ color: `#${theme.textColor}` }}>
-              Profile Settings
-            </h3>
-            
-            {/* Profile Photo - Add back the photo upload UI */}
-            <div className="flex flex-col items-center space-y-3 mb-6 pb-4 border-b" style={{ borderColor: `#${theme.borderColor}` }}>
-              <div className="relative w-32 h-32 flex items-center justify-center">
-                <div 
-                  className={`relative w-24 h-24 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-100 ${dragActive ? 'ring-2 ring-blue-500' : ''}`}
-                  style={{ borderColor: `#${theme.borderColor}` }}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  {photoPreview ? (
-                    <img 
-                      src={photoPreview} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
+        {/* Preferences */}
+        <TabsContent value="preferences" className="space-y-6">
+          {/* Languages */}
+          <WindowSection title="Languages">
+            <div className="space-y-3">
+              <Label style={{ color: `#${theme.textColor}` }}>
+                <Globe className="w-4 h-4 inline mr-1" />
+                Select languages you speak
+              </Label>
+              <p className="text-sm opacity-70" style={{ color: `#${theme.textColor}` }}>
+                This helps others know what languages you can communicate in.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {LANGUAGES.map((language) => (
+                  <label
+                    key={language.value}
+                    className="flex items-center space-x-2 cursor-pointer p-2 rounded border hover:bg-opacity-50"
+                    style={{
+                      borderColor: `#${theme.borderColor}`,
+                      backgroundColor: selectedLanguages.includes(language.value) ? `#${theme.borderColor}20` : 'transparent'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedLanguages.includes(language.value)}
+                      onChange={() => toggleLanguage(language.value)}
+                      className="rounded"
+                      style={{ accentColor: `#${theme.borderColor}` }}
                     />
-                  ) : (
-                    <UserCircle className="w-16 h-16 text-gray-400" />
-                  )}
-                </div>
-                
-                {/* Remove button - Placed outside the image container */}
-                {photoPreview && (
-                  <div className="absolute top-0 right-0 translate-x-1 -translate-y-1">
-                    <button
-                      type="button"
-                      onClick={removePhoto}
-                      className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md"
-                      title="Remove photo"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                    <span className="text-sm" style={{ color: `#${theme.textColor}` }}>
+                      {language.label}
+                    </span>
+                  </label>
+                ))}
               </div>
-              
-              <div className="flex flex-col items-center">
-                <Label 
-                  htmlFor="profilePhoto" 
-                  className="mb-2"
-                  style={{ color: `#${theme.textColor}` }}
-                >
-                  Profile Photo
+            </div>
+          </WindowSection>
+          
+          {/* Interests */}
+          <WindowSection title="Shopping Interests">
+            <div className="space-y-4">
+              <div>
+                <Label style={{ color: `#${theme.textColor}` }}>
+                  <Tag className="w-4 h-4 inline mr-1" />
+                  What are you interested in buying from Japan?
                 </Label>
-                
-                <div 
-                  className={`w-full max-w-xs p-4 border-2 border-dashed rounded-sm flex flex-col items-center justify-center cursor-pointer mb-2 ${dragActive ? 'border-blue-500 bg-blue-50' : ''}`}
-                  style={{ 
-                    borderColor: dragActive ? '' : `#${theme.borderColor}`,
-                    backgroundColor: `#${theme.buttonBgColor || 'D4D0C8'}40`,
-                    boxShadow: '2px 2px 0 #FFFFFF inset, -2px -2px 0 #808080 inset'
-                  }}
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <Upload className="w-8 h-8 mb-2" style={{ color: `#${theme.textColor}` }} />
-                  <p className="text-sm text-center" style={{ color: `#${theme.textColor}` }}>
-                    Click to browse or drag and drop your photo here
-                  </p>
-                </div>
-                
-                <input
-                  id="profilePhoto"
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="hidden"
-                />
-                
-                <p className="text-xs mt-2 text-center max-w-xs" style={{ color: `#${theme.textColor}` }}>
-                  Upload a photo (max. 2MB) to personalize your profile. JPG, PNG, or GIF formats are supported.
+                <p className="text-sm opacity-70 mt-1" style={{ color: `#${theme.textColor}` }}>
+                  Select categories that interest you to help personalize your experience.
                 </p>
               </div>
+              
+              {/* Category tabs */}
+              <div className="flex flex-wrap gap-2">
+                {Object.keys(INTEREST_CATEGORIES).map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setActiveInterestCategory(category)}
+                    className={`px-3 py-1 text-sm rounded-full border transition-colors ${
+                      activeInterestCategory === category ? 'font-medium' : ''
+                    }`}
+                    style={{
+                      borderColor: `#${theme.borderColor}`,
+                      backgroundColor: activeInterestCategory === category ? `#${theme.borderColor}` : 'transparent',
+                      color: activeInterestCategory === category ? '#FFFFFF' : `#${theme.textColor}`
+                    }}
+                  >
+                    {category.charAt(0).toUpperCase() + category.slice(1)}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Interest tags for active category */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium capitalize" style={{ color: `#${theme.textColor}` }}>
+                    {activeInterestCategory}
+                  </h4>
+                  <WindowButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => clearInterestCategory(activeInterestCategory)}
+                  >
+                    Clear All
+                  </WindowButton>
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  {INTEREST_CATEGORIES[activeInterestCategory].map((interest) => (
+                    <button
+                      key={interest}
+                      onClick={() => toggleInterest(interest)}
+                      className={`px-3 py-1 text-sm rounded border transition-colors flex items-center gap-1 ${
+                        selectedInterests.includes(interest) ? 'font-medium' : ''
+                      }`}
+                      style={{
+                        borderColor: `#${theme.borderColor}`,
+                        backgroundColor: selectedInterests.includes(interest) ? `#${theme.borderColor}20` : 'transparent',
+                        color: `#${theme.textColor}`
+                      }}
+                    >
+                      {selectedInterests.includes(interest) && (
+                        <Check className="w-3 h-3" />
+                      )}
+                      {interest}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Selected interests summary */}
+              {selectedInterests.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-medium mb-2" style={{ color: `#${theme.textColor}` }}>
+                    Selected Interests ({selectedInterests.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedInterests.map((interest) => (
+                      <Badge
+                        key={interest}
+                        variant="secondary"
+                        className="text-xs"
+                        style={{
+                          backgroundColor: `#${theme.borderColor}10`,
+                          color: `#${theme.textColor}`,
+                          border: `1px solid #${theme.borderColor}30`
+                        }}
+                      >
+                        {interest}
+                        <button
+                          onClick={() => toggleInterest(interest)}
+                          className="ml-1 hover:bg-red-500 hover:text-white rounded-full p-0.5"
+                        >
+                          <X className="w-2 h-2" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            
-            <div className="grid grid-cols-1 gap-4">
-              {/* First Name */}
-              <div className="space-y-2">
-                <Label htmlFor="firstName" style={{ color: `#${theme.textColor}` }}>First Name</Label>
-                <Input
-                  id="firstName"
-                  value={userData.firstName}
-                  onChange={(e) => updateUserData('firstName', e.target.value)}
-                  style={{
-                    backgroundColor: `#${theme.bgColor}`,
-                    color: `#${theme.textColor}`,
-                    borderColor: `#${theme.borderColor}`
-                  }}
-                />
+          </WindowSection>
+        </TabsContent>
+        
+        {/* Privacy Settings */}
+        <TabsContent value="privacy" className="space-y-6">
+          <WindowSection title="Profile Visibility">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 border rounded" style={{ borderColor: `#${theme.borderColor}` }}>
+                <div>
+                  <h4 className="font-medium" style={{ color: `#${theme.textColor}` }}>Public Profile</h4>
+                  <p className="text-sm opacity-70" style={{ color: `#${theme.textColor}` }}>Allow others to view your profile and listings</p>
+                </div>
+                <input type="checkbox" defaultChecked className="rounded" style={{ accentColor: `#${theme.borderColor}` }} />
               </div>
               
-              {/* Last Name */}
-              <div className="space-y-2">
-                <Label htmlFor="lastName" style={{ color: `#${theme.textColor}` }}>Last Name</Label>
-                <Input
-                  id="lastName"
-                  value={userData.lastName}
-                  onChange={(e) => updateUserData('lastName', e.target.value)}
-                  style={{
-                    backgroundColor: `#${theme.bgColor}`,
-                    color: `#${theme.textColor}`,
-                    borderColor: `#${theme.borderColor}`
-                  }}
-                />
+              <div className="flex items-center justify-between p-3 border rounded" style={{ borderColor: `#${theme.borderColor}` }}>
+                <div>
+                  <h4 className="font-medium" style={{ color: `#${theme.textColor}` }}>Show Online Status</h4>
+                  <p className="text-sm opacity-70" style={{ color: `#${theme.textColor}` }}>Let others see when you're online</p>
+                </div>
+                <input type="checkbox" defaultChecked className="rounded" style={{ accentColor: `#${theme.borderColor}` }} />
               </div>
               
-              {/* Bio */}
-              <div className="space-y-2">
-                <Label htmlFor="bio" style={{ color: `#${theme.textColor}` }}>Bio</Label>
-                <Textarea
-                  id="bio"
-                  value={userData.bio}
-                  onChange={(e) => updateUserData('bio', e.target.value)}
-                  style={{
-                    backgroundColor: `#${theme.bgColor}`,
-                    color: `#${theme.textColor}`,
-                    borderColor: `#${theme.borderColor}`
-                  }}
-                />
-              </div>
-              
-              {/* Country */}
-              <div className="space-y-2">
-                <Label htmlFor="country" style={{ color: `#${theme.textColor}` }}>Country</Label>
-                <Input
-                  id="country"
-                  value={userData.country}
-                  onChange={(e) => updateUserData('country', e.target.value)}
-                  style={{
-                    backgroundColor: `#${theme.bgColor}`,
-                    color: `#${theme.textColor}`,
-                    borderColor: `#${theme.borderColor}`
-                  }}
-                />
-              </div>
-              
-              {/* Interests */}
-              <div className="space-y-2">
-                <Label htmlFor="interests" style={{ color: `#${theme.textColor}` }}>Interests</Label>
-                <Textarea
-                  id="interests"
-                  value={userData.interests}
-                  onChange={(e) => updateUserData('interests', e.target.value)}
-                  style={{
-                    backgroundColor: `#${theme.bgColor}`,
-                    color: `#${theme.textColor}`,
-                    borderColor: `#${theme.borderColor}`
-                  }}
-                />
+              <div className="flex items-center justify-between p-3 border rounded" style={{ borderColor: `#${theme.borderColor}` }}>
+                <div>
+                  <h4 className="font-medium" style={{ color: `#${theme.textColor}` }}>Email Notifications</h4>
+                  <p className="text-sm opacity-70" style={{ color: `#${theme.textColor}` }}>Receive email updates about messages and orders</p>
+                </div>
+                <input type="checkbox" defaultChecked className="rounded" style={{ accentColor: `#${theme.borderColor}` }} />
               </div>
             </div>
-          </div>
+          </WindowSection>
+          
+          <WindowSection title="Data & Privacy">
+            <div className="space-y-3">
+              <WindowButton variant="secondary" className="w-full justify-start">
+                Download Your Data
+              </WindowButton>
+              <WindowButton variant="secondary" className="w-full justify-start">
+                Delete Account
+              </WindowButton>
+              <p className="text-xs opacity-70" style={{ color: `#${theme.textColor}` }}>
+                Account deletion is permanent and cannot be undone. All your data will be removed.
+              </p>
+            </div>
+          </WindowSection>
         </TabsContent>
       </Tabs>
 
       {/* Save Button */}
       <div className="flex justify-end mt-6 pt-4 border-t" style={{ borderColor: `#${theme.borderColor}` }}>
-        <Button
+        <WindowButton
           onClick={handleSave}
           disabled={saving}
-          variant="vintageActive"
-          className="flex items-center gap-1"
+          variant="primary"
         >
           {saving ? (
             <>
@@ -1631,9 +1977,9 @@ const SettingsPage = ({ isWindowView = true }) => {
               <span>Save Changes</span>
             </>
           )}
-        </Button>
+        </WindowButton>
       </div>
-    </div>
+    </WindowContainer>
   );
 };
 

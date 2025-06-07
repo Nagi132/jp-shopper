@@ -19,13 +19,16 @@ const ItemCard = ({
   theme
 }) => {
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
   
   // Extract required fields from the item with fallbacks
   const {
     id,
     title = "Untitled Item",
-    budget: price,
-    images = [],
+    budget, // for request items
+    price, // for listing items
+    images = [], // for request items (old)
+    photos = [], // for listing items (new)
     status,
   } = item || {};
 
@@ -34,11 +37,35 @@ const ItemCard = ({
   const bgColor = theme?.bgColor || 'FED1EB';
   const textColor = theme?.textColor || '000000';
 
-  // Get primary image with fallback
-  const primaryImage = images?.length > 0 
-    ? images[0] 
-    // Use theme colors for placeholder background
-    : `https://placehold.jp/80/${isWanted ? borderColor : bgColor}/ffffff/400x400.png?text=${encodeURIComponent(title)}`;
+  // Get cover image (first photo)
+  const getCoverImageUrl = () => {
+    // For listings (from 'listings' bucket)
+    if (photos && photos.length > 0) {
+      return photos[0];
+    }
+    
+    // For requests (from 'request-images' bucket)
+    if (images && images.length > 0) {
+      return images[0];
+    }
+    
+    // Fallback to placeholder
+    return `https://placehold.jp/80/${isWanted ? borderColor : bgColor}/ffffff/400x400.png?text=${encodeURIComponent(title)}`;
+  };
+  
+  // Get front image (second photo if available)
+  const getFrontImageUrl = () => {
+    // For listings (from 'listings' bucket)
+    if (photos && photos.length > 1) {
+      return photos[1];
+    }
+    
+    // If no second photo, use the first one
+    return getCoverImageUrl();
+  };
+  
+  const coverImage = getCoverImageUrl();
+  const frontImage = getFrontImageUrl();
     
   // Check item status
   const isSold = status === 'completed';
@@ -80,10 +107,13 @@ const ItemCard = ({
   };
 
   // Format price with yen symbol
-  const formatPrice = (price) => {
-    if (!price) return '';
-    return `¥${price.toLocaleString()}`;
+  const formatPrice = (value) => {
+    if (!value) return '';
+    return `¥${value.toLocaleString()}`;
   };
+
+  // Get the price (either from price for listings or budget for requests)
+  const displayPrice = price || budget;
 
   return (
     <div 
@@ -91,14 +121,16 @@ const ItemCard = ({
       style={{
         border: theme ? `2px solid #${theme.borderColor}` : undefined,
       }}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
     >
       <div className="relative">
         {/* Main Image */}
         <div className="relative aspect-auto overflow-hidden">
           <img 
-            src={primaryImage}
+            src={isHovering ? frontImage : coverImage}
             alt={title}
-            className="w-full h-auto object-cover"
+            className="w-full h-auto object-cover transition-opacity duration-300"
             loading="lazy"
           />
         </div>
@@ -148,7 +180,7 @@ const ItemCard = ({
         
         {/* Price */}
         <div className="text-sm">
-          {isWanted ? 'WANTED' : formatPrice(price)}
+          {isWanted ? 'WANTED' : formatPrice(displayPrice)}
         </div>
       </div>
     </div>

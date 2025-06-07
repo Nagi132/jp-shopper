@@ -33,17 +33,42 @@ const ExploreContent = ({
     try {
       setLoading(true);
       
-      // Fetch requests to display as items
-      const { data: requestsData, error } = await supabase
-        .from('requests')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
+      // Fetch both listings and requests to display as items
+      const [listingsResponse, requestsResponse] = await Promise.all([
+        // Fetch listings (products)
+        supabase
+          .from('listings')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(30),
+          
+        // Fetch requests
+        supabase
+          .from('requests')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(20)
+      ]);
 
-      if (error) throw error;
+      // Check for errors
+      if (listingsResponse.error) throw listingsResponse.error;
+      if (requestsResponse.error) throw requestsResponse.error;
       
-      console.log('Fetched data:', requestsData);
-      setItems(requestsData || []);
+      // Combine the results
+      const listingsData = listingsResponse.data || [];
+      const requestsData = requestsResponse.data || [];
+      
+      // Tag each item with its type for filtering
+      const combinedItems = [
+        ...listingsData.map(item => ({ ...item, item_type: 'listing' })),
+        ...requestsData.map(item => ({ ...item, item_type: 'request' }))
+      ];
+      
+      // Sort combined items by creation date
+      combinedItems.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      
+      console.log('Fetched data:', { listings: listingsData.length, requests: requestsData.length });
+      setItems(combinedItems);
     } catch (err) {
       console.error('Error fetching items:', err);
       setError(err.message);
@@ -63,12 +88,25 @@ const ExploreContent = ({
     let filtered = items.filter(item => {
       // Apply tab filter
       let tabMatch = true;
+      
       if (activeTab === 'available') {
-        tabMatch = item.status === 'open' && item.shopper_id === null;
+        if (item.item_type === 'listing') {
+          tabMatch = !item.is_sold;
+        } else { // request
+          tabMatch = item.status === 'open' && item.shopper_id === null;
+        }
       } else if (activeTab === 'sold') {
-        tabMatch = item.status === 'completed';
+        if (item.item_type === 'listing') {
+          tabMatch = item.is_sold === true;
+        } else { // request
+          tabMatch = item.status === 'completed';
+        }
       } else if (activeTab === 'requested') {
-        tabMatch = item.status === 'open' && item.shopper_id !== null;
+        if (item.item_type === 'listing') {
+          tabMatch = false; // Listings don't have a "requested" state
+        } else { // request
+          tabMatch = item.status === 'open' && item.shopper_id !== null;
+        }
       }
       
       // Apply search filter
@@ -83,9 +121,13 @@ const ExploreContent = ({
     return filtered.sort((a, b) => {
       switch (sortOption) {
         case 'lowToHigh':
-          return (a.budget || 0) - (b.budget || 0);
+          const aPrice = a.item_type === 'listing' ? (a.price || 0) : (a.budget || 0);
+          const bPrice = b.item_type === 'listing' ? (b.price || 0) : (b.budget || 0);
+          return aPrice - bPrice;
         case 'highToLow':
-          return (b.budget || 0) - (a.budget || 0);
+          const aPriceDesc = a.item_type === 'listing' ? (a.price || 0) : (a.budget || 0);
+          const bPriceDesc = b.item_type === 'listing' ? (b.price || 0) : (b.budget || 0);
+          return bPriceDesc - aPriceDesc;
         case 'newest':
           return new Date(b.created_at) - new Date(a.created_at);
         default: // 'relevant' - could implement more sophisticated relevance later
@@ -113,12 +155,31 @@ const ExploreContent = ({
 
   // Handle item click
   const handleItemClick = (item) => {
+    console.log('Item clicked:', {
+      id: item.id,
+      title: item.title,
+      item_type: item.item_type,
+      hasPhotos: item.photos && item.photos.length > 0,
+      photoCount: item.photos ? item.photos.length : 0
+    });
+    
     if (onItemClick) {
       // Use callback if provided (window mode)
+      console.log('Using callback for item click (window mode)');
       onItemClick(item);
     } else {
       // Navigate directly (standalone page mode)
-      router.push(`/requests/${item.id}`);
+      if (item.item_type === 'listing') {
+        const itemUrl = `/item/${item.id}`;
+        console.log(`Navigating to listing: ${itemUrl}`);
+        
+        // Force using regular full-page navigation instead of client-side
+        window.location.href = itemUrl;
+      } else {
+        const requestUrl = `/requests/${item.id}`;
+        console.log(`Navigating to request: ${requestUrl}`);
+        router.push(requestUrl);
+      }
     }
   };
   

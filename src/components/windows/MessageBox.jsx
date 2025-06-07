@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
-import { Info, AlertTriangle, X, AlertCircle, HelpCircle, Check } from 'lucide-react';
+import { Info, AlertTriangle, X, AlertCircle, HelpCircle, Check, CheckCircle } from 'lucide-react';
 
 /**
  * MessageBox - A Windows 2000 style message box component
@@ -131,7 +131,7 @@ export function MessageBox({
       case 'question':
         return <HelpCircle className="h-8 w-8 text-blue-500" />;
       case 'success':
-        return <Check className="h-8 w-8 text-green-500" />;
+        return <CheckCircle className="h-8 w-8 text-green-500" />;
       default:
         return <Info className="h-8 w-8 text-blue-500" />;
     }
@@ -203,7 +203,11 @@ export function MessageBox({
       <div 
         className="absolute inset-0 bg-blue-600 bg-opacity-50 backdrop-blur-sm"
         onClick={!disableEscapeKey ? onClose : undefined}
-        style={{ cursor: disableEscapeKey ? 'default' : 'pointer' }}
+        style={{ 
+          cursor: disableEscapeKey ? 'default' : 'pointer',
+          backgroundColor: type === 'error' ? 'rgba(220, 38, 38, 0.2)' : 'rgba(37, 99, 235, 0.2)', 
+          backdropFilter: 'blur(1px)'
+        }}
       />
       
       {/* Message box container */}
@@ -508,8 +512,17 @@ export function DialogProvider({ children, theme = {} }) {
     return showMessageBox({ title, message, type: 'warning', buttons });
   };
   
-  const showError = (message, title = 'Error', buttons = ['OK']) => {
-    return showMessageBox({ title, message, type: 'error', buttons });
+  const showError = (message, title = 'Error', buttons = ['OK'], callback = null) => {
+    return showMessageBox({
+      title,
+      message,
+      type: 'error',
+      buttons,
+      disableEscapeKey: false, // Allow escape key to dismiss errors
+      onButtonClick: (button) => {
+        if (callback) callback(button);
+      }
+    });
   };
   
   const showQuestion = (message, title = 'Question', buttons = ['Yes', 'No']) => {
@@ -537,6 +550,17 @@ export function DialogProvider({ children, theme = {} }) {
     });
   };
   
+  // Show success dialog
+  const showSuccess = (title, message, callback = null) => {
+    return showMessageBox({
+      title,
+      message,
+      type: 'success',
+      buttons: ['OK'],
+      callback,
+    });
+  };
+  
   // Provide the dialog functions through context
   const contextValue = {
     showMessageBox,
@@ -545,7 +569,8 @@ export function DialogProvider({ children, theme = {} }) {
     showError,
     showQuestion,
     showConfirm,
-    showInputDialog
+    showInputDialog,
+    showSuccess,
   };
   
   return (

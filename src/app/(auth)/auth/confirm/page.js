@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { CheckCircle, X, Loader2 } from 'lucide-react';
 
 // This page handles the redirect from email verification
-export default function EmailConfirmPage() {
+function EmailConfirmContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -159,5 +159,24 @@ export default function EmailConfirmPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function EmailConfirmPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center">
+              <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+              Loading...
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <EmailConfirmContent />
+    </Suspense>
   );
 }

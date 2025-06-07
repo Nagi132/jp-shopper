@@ -80,13 +80,13 @@ function MainLayoutInner({ children }) {
 
   return (
     <div 
-      className={`h-screen flex ${futuraCyrillicMedium.variable} ${futuraCyrillicLight.variable} ${futuraCyrillicBold.variable}`}
+      className={`h-screen ${futuraCyrillicMedium.variable} ${futuraCyrillicLight.variable} ${futuraCyrillicBold.variable}`}
     >
-      {/* Navigation Sidebar with theme */}
+      {/* Mobile-only Navigation */}
       <NavigationSidebar theme={theme} />
       
-      {/* Main Content Area with Windows Desktop */}
-      <div className="flex-1 md:ml-60">
+      {/* Full-width Windows Desktop */}
+      <div className="h-full">
         {/* Windows Desktop */}
         <WindowsDesktop>
           {/* All window content components */}

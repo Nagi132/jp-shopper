@@ -18,7 +18,9 @@ import {
   HelpPage,
   RequestDetail,
   NewRequestPage,
-  ProfilePage
+  ProfilePage,
+  ListingPage,
+  ItemDetail
 } from './WindowContents';
 
 /**
@@ -68,6 +70,7 @@ const WindowManager = ({
       'HelpPage': HelpPage,
       'NewRequestPage': NewRequestPage,
       'ProfilePage': ProfilePage,
+      'ListingPage': ListingPage
     };
 
     // Handle special case for RequestDetail
@@ -75,6 +78,22 @@ const WindowManager = ({
       // Extract ID from windowId (format: request-123)
       const id = windowId.replace('request-', '');
       return () => <RequestDetail requestId={id} />;
+    }
+    
+    // Handle special case for ItemDetail
+    if (componentName === 'ItemDetail') {
+      // Extract ID from windowId (format: item-123)
+      const id = windowId.replace('item-', '');
+      console.log('Creating ItemDetail component with id:', id);
+      return () => <ItemDetail itemId={id} />;
+    }
+    
+    // Handle special case for ProfilePage with userId
+    if (componentName === 'ProfilePage' && windowId.startsWith('profile-')) {
+      // Extract user ID from windowId (format: profile-123)
+      const userId = windowId.replace('profile-', '');
+      console.log('Creating ProfilePage component with userId:', userId);
+      return () => <ProfilePage userId={userId} isWindowView={true} />;
     }
 
     return componentMap[componentName] || null;
@@ -109,8 +128,14 @@ const WindowManager = ({
                 </MessageBoxProvider>
               </DialogProvider>
             ) : (
-              <div className="flex items-center justify-center h-full">
-                <p>Content for {window.title} not found</p>
+              <div className="flex flex-col items-center justify-center h-full p-4">
+                <p className="text-red-500 font-bold mb-4">Content for {window.title} not found</p>
+                <div className="bg-yellow-50 border-2 border-yellow-400 p-4 rounded-md w-full max-w-lg text-sm">
+                  <h3 className="font-bold text-yellow-800 mb-2">Debug Information:</h3>
+                  <p><strong>Window ID:</strong> {window.id}</p>
+                  <p><strong>Component Name:</strong> {window.component}</p>
+                  <p className="mt-2 text-xs text-gray-600">Check that {window.component} is properly exported from WindowContents.jsx and imported in WindowManager.jsx</p>
+                </div>
               </div>
             )}
           </Window>

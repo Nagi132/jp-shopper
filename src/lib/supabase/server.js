@@ -7,7 +7,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_
 // Log the connection details to verify (sanitized for security)
 console.log('Initializing server Supabase client with:', {
     url: supabaseUrl ? `${supabaseUrl.substring(0, 15)}...` : 'undefined',
-    keyProvided: !!supabaseKey
+    keyProvided: !!supabaseServiceKey
   });
   
 export const supabase = createClient(supabaseUrl, supabaseServiceKey);

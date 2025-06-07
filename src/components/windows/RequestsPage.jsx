@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase/client';
 import { useApp } from '@/contexts/AppContext';
 import { useTheme } from '@/components/layouts/ThemeProvider';
 import { Plus, Loader2, CheckCircle, Clock, Package, AlertCircle } from 'lucide-react';
+import { WindowContainer, WindowToolbar, WindowStatusBar } from '@/components/ui/window-container';
+import { WindowButton, WindowButtonGroup } from '@/components/ui/window-button';
 import { getStatusColor, getStatusIcon } from '@/lib/helpers/requestStatusHelpers';
 
 /**
@@ -21,25 +23,7 @@ const RequestsPage = ({ isWindowView = true }) => {
   const { openWindow } = useApp();
   const { theme } = useTheme();
 
-  // Get theme colors
-  const borderColor = theme?.borderColor || '69EFD7';
-  const bgColor = theme?.bgColor || 'FED1EB';
-  
-  // Determine text color based on background color
-  const getContrastText = (hexColor) => {
-    // Convert hex to RGB
-    const r = parseInt(hexColor.substr(0, 2), 16);
-    const g = parseInt(hexColor.substr(2, 2), 16);
-    const b = parseInt(hexColor.substr(4, 2), 16);
-    
-    // Calculate luminance
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    // Return black for light colors, white for dark
-    return luminance > 0.5 ? '000000' : 'FFFFFF';
-  };
-  
-  const textColor = theme?.textColor || getContrastText(bgColor);
+  // Use theme colors directly from theme provider
 
   // Load requests data
   useEffect(() => {
@@ -118,7 +102,7 @@ const RequestsPage = ({ isWindowView = true }) => {
             borderTopWidth: '3px',
             borderRightWidth: '3px',
             borderStyle: 'solid',
-            borderColor: `#${borderColor}` 
+            borderColor: `#${theme.borderColor}` 
           }}
         ></div>
         <span className="ml-2">Loading your requests...</span>
@@ -141,113 +125,117 @@ const RequestsPage = ({ isWindowView = true }) => {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Header with tabs */}
+    <div className="h-full flex flex-col">
+      {/* Tabs Header */}
       <div 
-        className="py-2 px-4 flex items-center justify-between border-b"
-        style={{ 
-          backgroundColor: `#${bgColor}30`, 
-          borderColor: `#${borderColor}40` 
+        className="border-b px-4 py-3 flex-shrink-0"
+        style={{
+          backgroundColor: `#${theme.bgColor}`,
+          borderColor: `#${theme.borderColor}`,
+          color: `#${theme.textColor}`
         }}
       >
-        <div className="flex">
-          <button
-            className={`px-3 py-1 text-sm font-medium border-b-2 ${
-              activeTab === 'all' 
-                ? `border-[#${borderColor}]` 
-                : 'border-transparent hover:border-gray-300'
-            }`}
-            onClick={() => setActiveTab('all')}
-            style={{ color: activeTab === 'all' ? `#${borderColor}` : `#${textColor}` }}
-          >
-            All
-            <span 
-              className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-opacity-20"
-              style={{ backgroundColor: `#${borderColor}30` }}
+        <div className="flex items-center justify-between">
+          <div className="flex">
+            <button
+              className={`px-3 py-1 text-sm font-medium border-b-2 ${
+                activeTab === 'all' 
+                  ? `border-[#${theme.borderColor}]` 
+                  : 'border-transparent hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('all')}
+              style={{ color: activeTab === 'all' ? `#${theme.borderColor}` : `#${theme.textColor}` }}
             >
-              {stats.all}
-            </span>
-          </button>
+              All
+              <span 
+                className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-opacity-20"
+                style={{ backgroundColor: `#${theme.borderColor}30` }}
+              >
+                {stats.all}
+              </span>
+            </button>
+            
+            <button
+              className={`px-3 py-1 text-sm font-medium border-b-2 ${
+                activeTab === 'active' 
+                  ? `border-[#${theme.borderColor}]` 
+                  : 'border-transparent hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('active')}
+              style={{ color: activeTab === 'active' ? `#${theme.borderColor}` : `#${theme.textColor}` }}
+            >
+              Active
+              <span 
+                className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-opacity-20"
+                style={{ backgroundColor: `#${theme.borderColor}30` }}
+              >
+                {stats.active}
+              </span>
+            </button>
+            
+            <button
+              className={`px-3 py-1 text-sm font-medium border-b-2 ${
+                activeTab === 'open' 
+                  ? `border-[#${theme.borderColor}]` 
+                  : 'border-transparent hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('open')}
+              style={{ color: activeTab === 'open' ? `#${theme.borderColor}` : `#${theme.textColor}` }}
+            >
+              Open
+              <span 
+                className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-opacity-20"
+                style={{ backgroundColor: `#${theme.borderColor}30` }}
+              >
+                {stats.open}
+              </span>
+            </button>
+            
+            <button
+              className={`px-3 py-1 text-sm font-medium border-b-2 ${
+                activeTab === 'completed' 
+                  ? `border-[#${theme.borderColor}]` 
+                  : 'border-transparent hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('completed')}
+              style={{ color: activeTab === 'completed' ? `#${theme.borderColor}` : `#${theme.textColor}` }}
+            >
+              Completed
+              <span 
+                className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-opacity-20"
+                style={{ backgroundColor: `#${theme.borderColor}30` }}
+              >
+                {stats.completed}
+              </span>
+            </button>
+          </div>
           
-          <button
-            className={`px-3 py-1 text-sm font-medium border-b-2 ${
-              activeTab === 'active' 
-                ? `border-[#${borderColor}]` 
-                : 'border-transparent hover:border-gray-300'
-            }`}
-            onClick={() => setActiveTab('active')}
-            style={{ color: activeTab === 'active' ? `#${borderColor}` : `#${textColor}` }}
+          {/* Create Request Button */}
+          <WindowButton
+            variant="primary"
+            size="sm"
+            onClick={handleCreateRequest}
           >
-            Active
-            <span 
-              className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-opacity-20"
-              style={{ backgroundColor: `#${borderColor}30` }}
-            >
-              {stats.active}
-            </span>
-          </button>
-          
-          <button
-            className={`px-3 py-1 text-sm font-medium border-b-2 ${
-              activeTab === 'open' 
-                ? `border-[#${borderColor}]` 
-                : 'border-transparent hover:border-gray-300'
-            }`}
-            onClick={() => setActiveTab('open')}
-            style={{ color: activeTab === 'open' ? `#${borderColor}` : `#${textColor}` }}
-          >
-            Open
-            <span 
-              className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-opacity-20"
-              style={{ backgroundColor: `#${borderColor}30` }}
-            >
-              {stats.open}
-            </span>
-          </button>
-          
-          <button
-            className={`px-3 py-1 text-sm font-medium border-b-2 ${
-              activeTab === 'completed' 
-                ? `border-[#${borderColor}]` 
-                : 'border-transparent hover:border-gray-300'
-            }`}
-            onClick={() => setActiveTab('completed')}
-            style={{ color: activeTab === 'completed' ? `#${borderColor}` : `#${textColor}` }}
-          >
-            Completed
-            <span 
-              className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-opacity-20"
-              style={{ backgroundColor: `#${borderColor}30` }}
-            >
-              {stats.completed}
-            </span>
-          </button>
+            <Plus className="w-4 h-4" />
+            Create Request
+          </WindowButton>
         </div>
-        
-        {/* Create Request Button */}
-        <button
-          className="flex items-center px-3 py-1.5 text-sm rounded-sm"
-          style={{ 
-            backgroundColor: `#${borderColor}`,
-            color: getContrastText(borderColor) === '000000' ? '#000000' : '#FFFFFF',
-            border: `1px solid #${borderColor}`,
-            boxShadow: '1px 1px 0 rgba(0,0,0,0.1)'
-          }}
-          onClick={handleCreateRequest}
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Create Request
-        </button>
       </div>
-      
-      {/* Main content */}
-      <div className="flex-1 overflow-auto p-4">
+
+      {/* Main Content Area */}
+      <div 
+        className="flex-1 p-4 overflow-auto"
+        style={{
+          backgroundColor: `#${theme.bgColor}10`,
+          color: `#${theme.textColor}`
+        }}
+      >
         {filteredRequests.length === 0 ? (
           <div 
             className="text-center py-10 border-2 rounded-lg border-dashed"
             style={{ 
-              borderColor: `#${borderColor}50`,
-              backgroundColor: `#${bgColor}20` 
+              borderColor: `#${theme.borderColor}`,
+              backgroundColor: `#${theme.bgColor}20` 
             }}
           >
             <div className="mb-3">
@@ -262,18 +250,12 @@ const RequestsPage = ({ isWindowView = true }) => {
               {activeTab === 'completed' && "You haven't completed any requests yet."}
               {activeTab === 'all' && "You haven't created any requests yet."}
             </p>
-            <button
-              className="py-1.5 px-4 text-sm rounded-sm"
-              style={{ 
-                backgroundColor: `#${borderColor}`,
-                color: getContrastText(borderColor) === '000000' ? '#000000' : '#FFFFFF',
-                border: `1px solid #${borderColor}`,
-                boxShadow: '1px 1px 0 rgba(0,0,0,0.1)'
-              }}
+            <WindowButton
+              variant="primary"
               onClick={handleCreateRequest}
             >
               Create Your First Request
-            </button>
+            </WindowButton>
           </div>
         ) : (
           <div className="space-y-3">
@@ -282,8 +264,8 @@ const RequestsPage = ({ isWindowView = true }) => {
                 key={request.id} 
                 className="p-3 border rounded-sm hover:shadow-sm cursor-pointer transition-shadow"
                 style={{ 
-                  backgroundColor: `#${bgColor}10`,
-                  borderColor: `#${borderColor}40`,
+                  backgroundColor: `#${theme.bgColor}20`,
+                  borderColor: `#${theme.borderColor}`,
                 }}
                 onClick={() => handleRequestClick(request.id)}
               >
@@ -314,7 +296,7 @@ const RequestsPage = ({ isWindowView = true }) => {
                         <div 
                           key={index}
                           className="w-8 h-8 rounded-sm overflow-hidden border"
-                          style={{ borderColor: `#${borderColor}50` }}
+                          style={{ borderColor: `#${theme.borderColor}` }}
                         >
                           <img
                             src={url}
@@ -327,8 +309,8 @@ const RequestsPage = ({ isWindowView = true }) => {
                         <div 
                           className="w-8 h-8 rounded-sm flex items-center justify-center text-xs"
                           style={{ 
-                            backgroundColor: `#${bgColor}30`,
-                            border: `1px solid #${borderColor}50` 
+                            backgroundColor: `#${theme.bgColor}30`,
+                            border: `1px solid #${theme.borderColor}` 
                           }}
                         >
                           +{request.images.length - 3}
@@ -342,13 +324,14 @@ const RequestsPage = ({ isWindowView = true }) => {
           </div>
         )}
       </div>
-      
-      {/* Status bar */}
+
+      {/* Footer */}
       <div 
-        className="h-5 text-xs px-2 flex items-center"
-        style={{ 
-          backgroundColor: `#${bgColor}20`,
-          borderTop: `1px solid #${borderColor}40`
+        className="border-t px-4 py-2 flex-shrink-0"
+        style={{
+          backgroundColor: `#${theme.bgColor}20`,
+          borderColor: `#${theme.borderColor}`,
+          color: `#${theme.textColor}`
         }}
       >
         <span>{filteredRequests.length} request{filteredRequests.length !== 1 ? 's' : ''} • {activeTab}</span>

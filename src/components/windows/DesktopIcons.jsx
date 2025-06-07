@@ -58,6 +58,13 @@ const DesktopIcons = ({ onOpenWindow, openWindows = [], theme }) => {
       icon: '/icons/profile.svg',
       component: 'ProfilePage',
       position: { x: 20, y: 500 }
+    },
+    {
+      id: 'desktop-list-item',
+      name: 'List an Item',
+      icon: '/icons/add.svg',
+      component: 'ListingPage',
+      position: { x: 20, y: 580 }
     }
   ], []);
   
